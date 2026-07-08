@@ -35,6 +35,9 @@ def _cfg():
             os.environ.get("TELEGRAM_CHAT_ID", ""))
 
 
+_CJK_FONT = None  # 存偵測到的中文字型名稱, 供 mplfinance style 使用
+
+
 def _setup_font():
     """
     設定中文字型 (雲端 Linux 靠 nixpacks.toml 裝的 fonts-noto-cjk)。
@@ -54,6 +57,7 @@ def _setup_font():
             name = font_manager.FontProperties(fname=bundled).get_name()
             plt.rcParams["font.family"] = name
             plt.rcParams["axes.unicode_minus"] = False
+            globals()["_CJK_FONT"] = name
             print(f"[notify] 使用打包字型: {name}")
             return
         except Exception as e:
@@ -67,6 +71,7 @@ def _setup_font():
         if c in available:
             plt.rcParams["font.family"] = c
             plt.rcParams["axes.unicode_minus"] = False
+            globals()["_CJK_FONT"] = c
             print(f"[notify] 使用系統字型: {c}")
             return
 
@@ -76,6 +81,7 @@ def _setup_font():
         if any(k in nm for k in ["cjk", "noto", "han", "hei", "ming", "song"]):
             plt.rcParams["font.family"] = f.name
             plt.rcParams["axes.unicode_minus"] = False
+            globals()["_CJK_FONT"] = f.name
             print(f"[notify] 自動偵測到字型: {f.name}")
             return
 
@@ -166,8 +172,11 @@ def make_kline_png(ticker: str, name: str, note: str = "",
     mc = mpf.make_marketcolors(up="#C62828", down="#2E7D32",
                                edge="inherit", wick="inherit",
                                volume="inherit")
+    _rc = {"font.size": 9}
+    if _CJK_FONT:
+        _rc["font.family"] = _CJK_FONT      # ★ 綁中文字型進 mplfinance, 修圖內豆腐
     style = mpf.make_mpf_style(marketcolors=mc, gridstyle=":",
-                               y_on_right=True, rc={"font.size": 9})
+                               y_on_right=True, rc=_rc)
     mav = (20,) if ma20_only else (5, 20, 60)
     code = ticker.rsplit(".", 1)[0]
     buf = io.BytesIO()

@@ -46,31 +46,40 @@ def push_json(path_in_repo: str, data: dict,
         "X-GitHub-Api-Version": "2022-11-28",
     }
 
-    # 先查現有檔案的 sha (更新需要)
-    sha = None
-    try:
-        r = requests.get(url, headers=headers,
-                         params={"ref": branch}, timeout=15)
-        if r.status_code == 200:
-            sha = r.json().get("sha")
-    except Exception:
-        pass
-
     content_str = json.dumps(data, ensure_ascii=False, indent=2)
     content_b64 = base64.b64encode(content_str.encode("utf-8")).decode("ascii")
 
-    payload = {
-        "message": commit_msg or f"update {path_in_repo}",
-        "content": content_b64,
-        "branch": branch,
-    }
-    if sha:
-        payload["sha"] = sha
+    # 最多重試 3 次: 遇 409 (sha 過期) 就重新抓最新 sha 再 PUT
+    for attempt in range(3):
+        # 每次都重新抓最新 sha (409 通常是 sha 過期造成)
+        sha = None
+        try:
+            r = requests.get(url, headers=headers,
+                             params={"ref": branch}, timeout=15)
+            if r.status_code == 200:
+                sha = r.json().get("sha")
+        except Exception:
+            pass
 
-    try:
-        r = requests.put(url, headers=headers, json=payload, timeout=20)
-        if r.status_code in (200, 201):
-            return True, "OK"
-        return False, f"HTTP {r.status_code}: {r.text[:200]}"
-    except Exception as e:
-        return False, str(e)
+        payload = {
+            "message": commit_msg or f"update {path_in_repo}",
+            "content": content_b64,
+            "branch": branch,
+        }
+        if sha:
+            payload["sha"] = sha
+
+        try:
+            r = requests.put(url, headers=headers, json=payload, timeout=20)
+            if r.status_code in (200, 201):
+                return True, "OK"
+            if r.status_code == 409 and attempt < 2:
+                import time as _t
+                _t.sleep(1.0)  # 稍等再重抓 sha 重試
+                continue
+            return False, f"HTTP {r.status_code}: {r.text[:200]}"
+        except Exception as e:
+            if attempt < 2:
+                continue
+            return False, str(e)
+    return False, "重試 3 次仍失敗"
