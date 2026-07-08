@@ -121,9 +121,24 @@ def send_photo(png_bytes: bytes, caption: str = "") -> bool:
 
 def make_kline_png(ticker: str, name: str, note: str = "",
                    ma20_only: bool = False) -> bytes | None:
-    """產生 K 線 PNG (台股紅漲綠跌 + 均線 + 量能)"""
-    df = StockDataFetcher.fetch_history(ticker, period="6mo")
-    if df.empty:
+    """產生 K 線 PNG (台股紅漲綠跌 + 均線 + 量能)。
+    上市股 (.TW) 優先用證交所 OHLCV (繞開 Yahoo SSL), 失敗再退 yfinance。"""
+    df = None
+    code = ticker.rsplit(".", 1)[0]
+    is_twse = ticker.endswith(".TW")
+
+    if is_twse:
+        try:
+            from core_stock import _fetch_twse_stock_day
+            twse_df = _fetch_twse_stock_day(code, months_back=6)
+            if not twse_df.empty and len(twse_df) >= 20:
+                df = twse_df
+        except Exception as e:
+            print(f"[notify] 證交所 K 線資料抓取失敗 {code}: {e}")
+
+    if df is None:
+        df = StockDataFetcher.fetch_history(ticker, period="6mo")
+    if df is None or df.empty:
         return None
     plot_df = df.tail(120).copy()
     mc = mpf.make_marketcolors(up="#C62828", down="#2E7D32",

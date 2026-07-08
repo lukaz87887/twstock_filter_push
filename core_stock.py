@@ -1137,9 +1137,9 @@ class DisposalStockFetcher:
 
 def _fetch_twse_stock_day(code: str, months_back: int = 2) -> pd.DataFrame:
     """
-    用證交所 STOCK_DAY API 抓上市個股日收盤 (繞開 Yahoo SSL 問題)。
-    一次一個月, 抓最近 months_back 個月拼起來 (算 MA20 需要 ~20 交易日)。
-    回傳 DataFrame[index=date, Close] 或空。
+    用證交所 STOCK_DAY API 抓上市個股日 OHLCV (繞開 Yahoo SSL 問題)。
+    一次一個月, 抓最近 months_back 個月拼起來。
+    回傳 DataFrame[index=date, Open/High/Low/Close/Volume] 或空。
     """
     HEADERS = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
@@ -1150,7 +1150,6 @@ def _fetch_twse_stock_day(code: str, months_back: int = 2) -> pd.DataFrame:
     all_rows = []
     now = datetime.now()
     for m in range(months_back):
-        # 往前推 m 個月的第一天
         y = now.year
         mo = now.month - m
         while mo <= 0:
@@ -1168,20 +1167,40 @@ def _fetch_twse_stock_day(code: str, months_back: int = 2) -> pd.DataFrame:
             if payload.get("stat") != "OK":
                 continue
             fields = payload.get("fields", [])
-            # 找收盤價欄位 index
-            try:
-                i_date = fields.index("日期")
-                i_close = fields.index("收盤價")
-            except ValueError:
-                i_date, i_close = 0, 6
+            def _fi(name, default):
+                try:
+                    return fields.index(name)
+                except ValueError:
+                    return default
+            i_date = _fi("日期", 0)
+            i_open = _fi("開盤價", 3)
+            i_high = _fi("最高價", 4)
+            i_low = _fi("最低價", 5)
+            i_close = _fi("收盤價", 6)
+            i_vol = _fi("成交股數", 1)
+
+            def _num(v):
+                s = str(v).replace(",", "").strip()
+                try:
+                    return float(s)
+                except ValueError:
+                    return None
+
             for row in payload.get("data", []):
                 try:
                     roc = str(row[i_date]).strip()  # 民國 115/07/08
                     parts = roc.split("/")
                     west = datetime(int(parts[0]) + 1911,
                                     int(parts[1]), int(parts[2]))
-                    close = float(str(row[i_close]).replace(",", ""))
-                    all_rows.append((west, close))
+                    o = _num(row[i_open])
+                    h = _num(row[i_high])
+                    lo = _num(row[i_low])
+                    c = _num(row[i_close])
+                    v = _num(row[i_vol]) or 0
+                    # 開高低收任一缺就跳過這天 (避免 OHLC 不齊)
+                    if None in (o, h, lo, c):
+                        continue
+                    all_rows.append((west, o, h, lo, c, v))
                 except (ValueError, IndexError):
                     continue
         except Exception:
@@ -1190,10 +1209,14 @@ def _fetch_twse_stock_day(code: str, months_back: int = 2) -> pd.DataFrame:
     if not all_rows:
         return pd.DataFrame()
     all_rows.sort(key=lambda x: x[0])
-    dates = [d for d, _ in all_rows]
-    closes = [c for _, c in all_rows]
-    df = pd.DataFrame({"Close": closes}, index=pd.DatetimeIndex(dates))
-    df = df[~df.index.duplicated(keep="last")]  # 去重
+    df = pd.DataFrame({
+        "Open":  [r[1] for r in all_rows],
+        "High":  [r[2] for r in all_rows],
+        "Low":   [r[3] for r in all_rows],
+        "Close": [r[4] for r in all_rows],
+        "Volume":[r[5] for r in all_rows],
+    }, index=pd.DatetimeIndex([r[0] for r in all_rows]))
+    df = df[~df.index.duplicated(keep="last")]
     return df
 
 
