@@ -28,12 +28,30 @@ def _cfg():
 
 
 def _setup_font():
+    """優先用 repo 內打包的中文字型 (fonts/tw_font.otf), 確保雲端 Linux 也能顯示中文"""
     from matplotlib import font_manager
+    # 1. 優先: repo 內打包的字型檔 (雲端容器沒系統中文字型時靠這個)
+    here = os.path.dirname(os.path.abspath(__file__))
+    bundled = os.path.join(here, "fonts", "tw_font.otf")
+    if os.path.exists(bundled):
+        try:
+            font_manager.fontManager.addfont(bundled)
+            name = font_manager.FontProperties(fname=bundled).get_name()
+            plt.rcParams["font.family"] = name
+            plt.rcParams["axes.unicode_minus"] = False
+            print(f"[notify] 使用打包字型: {name}")
+            return
+        except Exception as e:
+            print(f"[notify] 打包字型載入失敗: {e}")
+    # 2. 備援: 系統已裝的中文字型
     for c in ["Microsoft JhengHei", "PingFang TC", "Noto Sans CJK TC",
               "WenQuanYi Micro Hei", "Noto Sans TC", "SimHei"]:
         if c in {f.name for f in font_manager.fontManager.ttflist}:
             plt.rcParams["font.family"] = c
-            break
+            plt.rcParams["axes.unicode_minus"] = False
+            print(f"[notify] 使用系統字型: {c}")
+            return
+    print("[notify] ⚠️ 找不到中文字型, 中文可能顯示為方框")
     plt.rcParams["axes.unicode_minus"] = False
 
 

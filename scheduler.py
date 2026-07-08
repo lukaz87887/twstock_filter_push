@@ -110,13 +110,16 @@ def main():
     _log("=" * 50)
 
     schedule.every().day.at(morning).do(job_morning_disposal)
-    schedule.every().day.at(evening).do(job_evening_momentum)
+    # ★ 飆股推播暫時關閉 (使用者要求先只留處置股)
+    #   要恢復: 把下面這行取消註解
+    # schedule.every().day.at(evening).do(job_evening_momentum)
+    _log("  (飆股推播目前關閉, 只推處置股)")
 
     # 啟動即跑 (測試用)
     if _env("RUN_ON_START", "0") == "1":
-        _log("RUN_ON_START=1 → 立即執行一次兩種掃描")
+        _log("RUN_ON_START=1 → 立即執行一次處置股掃描")
         job_morning_disposal(force=True)
-        job_evening_momentum(force=True)
+        # job_evening_momentum(force=True)   # 飆股關閉
 
     _log("進入排程等待迴圈 (每 30 秒檢查一次)...")
     while True:
