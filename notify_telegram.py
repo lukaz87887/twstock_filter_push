@@ -191,29 +191,60 @@ def push_momentum(result: dict, top_n: int = 10, with_charts: bool = True):
                 time.sleep(0.5)  # 避免觸發 Telegram 限流
 
 
-def push_disposal(result: dict, top_n: int = 15, with_charts: bool = True):
-    """早上盤前推處置股"""
+def push_disposal(result: dict, top_n: int = 30, with_charts: bool = True):
+    """早上盤前推處置股 (含大總覽 + 本日新增 + 本日出關)"""
     items = result.get("items", [])
+    added = result.get("added_today", [])
+    removed = result.get("removed_today", [])
+
     if result.get("error"):
         send_message(f"⚠️ 處置股掃描提醒: {result['error']}")
     if not items:
         send_message("🌅 盤前處置股提醒\n目前無處置生效中的普通股")
         return
 
-    header = (f"🌅 盤前處置股提醒 ({result.get('data_date','')})\n"
-             f"處置生效中 {len(items)} 檔 (依距月線排序)\n"
-             f"🔴≤2% 🟡≤5% ⚪>5%\n{'━'*20}")
-    lines = [header]
+    # ---- 第 1 則: 大總覽 ----
+    overview = [f"🌅 盤前處置股提醒 ({result.get('data_date','')})",
+                f"{'='*22}",
+                f"📊 處置生效中共 {len(items)} 檔"]
+
+    # 本日新增
+    if added:
+        overview.append(f"\n🆕 本日新增 {len(added)} 檔:")
+        for it in added:
+            mk = "櫃" if it.get("market") == "TWO" else "市"
+            overview.append(f"  ➕ {it['code']}({mk}) {it['name']}  "
+                           f"處置至 {it['disposal_end']}")
+    else:
+        overview.append("\n🆕 本日新增: 無")
+
+    # 本日出關
+    if removed:
+        overview.append(f"\n✅ 本日出關 {len(removed)} 檔:")
+        overview.append("  " + "、".join(removed))
+    else:
+        overview.append("\n✅ 本日出關: 無")
+
+    # 全部標的清單 (代碼+名稱, 快速一覽)
+    overview.append(f"\n📋 全部處置標的:")
+    names_line = "、".join([f"{it['code']}{it['name']}" for it in items])
+    overview.append("  " + names_line)
+
+    send_message("\n".join(overview))
+
+    # ---- 第 2 則: 詳細清單 (依距月線排序) ----
+    detail = [f"📈 距月線排序 (🔴≤2% 🟡≤5% ⚪>5%)", f"{'━'*22}"]
     for r in items[:top_n]:
         mk = "櫃" if r.get("market") == "TWO" else "市"
-        lines.append(
+        detail.append(
             f"{r['color']} {r['code']}({mk}) {r['name']}  "
             f"距月線{r['diff_pct']:+.1f}%\n"
-            f"    處置 {r['disposal_start']}~{r['disposal_end']}")
-    send_message("\n".join(lines))
+            f"    處置 {r['disposal_start']}~{r['disposal_end']}  "
+            f"({r.get('measure','')})")
+    send_message("\n".join(detail))
 
+    # ---- K 線圖: 只附接近月線 (🔴🟡) 的 ----
     if with_charts:
-        # 只附「接近月線」(🔴🟡) 的圖, 避免圖太多
         near = [r for r in items if r["abs_diff_pct"] <= 5][:top_n]
         for r in near:
             ticker = f"{r['code']}.{r.get('market','TW')}"
@@ -221,6 +252,8 @@ def push_disposal(result: dict, top_n: int = 15, with_charts: bool = True):
                                  note=f"距月線{r['diff_pct']:+.1f}%",
                                  ma20_only=True)
             if png:
-                send_photo(png, caption=f"📈 {r['code']} {r['name']} "
-                                        f"(處置中, 距月線{r['diff_pct']:+.1f}%)")
+                new_tag = " 🆕新增" if any(
+                    a["code"] == r["code"] for a in added) else ""
+                send_photo(png, caption=f"📈 {r['code']} {r['name']}"
+                                        f"{new_tag} (距月線{r['diff_pct']:+.1f}%)")
                 time.sleep(0.5)

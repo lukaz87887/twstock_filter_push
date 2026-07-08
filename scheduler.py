@@ -55,17 +55,43 @@ def job_morning_disposal(force=False):
         return
     _log("▶ 開始盤前處置股掃描...")
     try:
-        result = run_disposal_scan(days_back=30, only_active=True)
+        # 先讀 GitHub 上昨天的清單, 用來算「本日新增/出關」
+        prev_codes = _load_prev_disposal_codes()
+        result = run_disposal_scan(days_back=30, only_active=True,
+                                   prev_codes=prev_codes)
         save_result("disposal", result)
         ok, msg = push_json("results/disposal.json", result,
                             commit_msg=f"disposal {result.get('data_date')}")
         _log(f"  GitHub 存檔: {'OK' if ok else msg}")
+        _log(f"  本日新增 {len(result.get('added_today',[]))} 檔, "
+             f"出關 {len(result.get('removed_today',[]))} 檔")
         with_charts = _env("PUSH_CHARTS", "1") == "1"
         push_disposal(result, with_charts=with_charts)
         _log(f"✔ 盤前處置股完成, {result.get('scanned',0)} 檔")
     except Exception as e:
         _log(f"✘ 盤前處置股失敗: {e}\n{traceback.format_exc()}")
         send_message(f"❌ 盤前處置股排程失敗: {e}")
+
+
+def _load_prev_disposal_codes():
+    """讀 GitHub 上現有的 disposal.json, 取出昨天的處置代碼集合"""
+    import requests as _rq
+    repo = _env("GITHUB_REPO", "")
+    branch = _env("GITHUB_BRANCH", "main")
+    if not repo:
+        return None
+    url = f"https://raw.githubusercontent.com/{repo}/{branch}/results/disposal.json"
+    try:
+        r = _rq.get(url, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            # 用 all_codes 或從 items 取
+            if "all_codes" in data:
+                return set(data["all_codes"])
+            return {it["code"] for it in data.get("items", [])}
+    except Exception as e:
+        _log(f"  (讀取昨日清單失敗, 首次執行屬正常: {e})")
+    return None
 
 
 # ==================================================================

@@ -136,6 +136,24 @@ class StrategyParams:
 # ==================================================================
 class StockDataFetcher:
     _cache: dict = {}
+    _session = None
+
+    @classmethod
+    def _get_session(cls):
+        """建立一個關閉 SSL 驗證問題的 requests session (解 Railway 上 fc.yahoo.com SSL 錯誤)"""
+        if cls._session is None:
+            try:
+                import requests as _rq
+                s = _rq.Session()
+                s.headers.update({
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                                  "Chrome/120.0.0.0 Safari/537.36"
+                })
+                cls._session = s
+            except Exception:
+                cls._session = False
+        return cls._session or None
 
     @classmethod
     def fetch_history(cls, ticker: str, period: str = "6mo",
@@ -144,17 +162,40 @@ class StockDataFetcher:
         cache_key = f"{ticker}_{period}_{today_key}"
         if not force_refresh and cache_key in cls._cache:
             return cls._cache[cache_key].copy()
+
+        # 嘗試多種方式抓取 (解決雲端 SSL / curl_cffi 問題)
+        df = cls._try_fetch(ticker, period)
+        if df is None or df.empty:
+            return pd.DataFrame()
         try:
-            df = yf.Ticker(ticker).history(period=period, auto_adjust=False)
-            if df.empty:
-                return pd.DataFrame()
             if df.index.tz is not None:
                 df.index = df.index.tz_localize(None)
             df.index = df.index.normalize()
-            cls._cache[cache_key] = df.copy()
-            return df
         except Exception:
-            return pd.DataFrame()
+            pass
+        cls._cache[cache_key] = df.copy()
+        return df
+
+    @classmethod
+    def _try_fetch(cls, ticker: str, period: str):
+        # 方式 1: 標準 yf.Ticker
+        try:
+            df = yf.Ticker(ticker).history(period=period, auto_adjust=False)
+            if not df.empty:
+                return df
+        except Exception:
+            pass
+        # 方式 2: yf.download (有時較穩)
+        try:
+            df = yf.download(ticker, period=period, auto_adjust=False,
+                             progress=False, threads=False)
+            if df is not None and not df.empty:
+                if isinstance(df.columns, pd.MultiIndex):
+                    df.columns = df.columns.get_level_values(0)
+                return df
+        except Exception:
+            pass
+        return None
 
     @classmethod
     def clear_cache(cls):

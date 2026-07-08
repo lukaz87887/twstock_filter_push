@@ -83,7 +83,7 @@ def run_momentum_scan(level: str = "all", preset: str = "standard",
 #   處置股月線掃描 (上市+上櫃)
 # ==================================================================
 def run_disposal_scan(days_back: int = 30, only_active: bool = True,
-                      progress_cb=None) -> dict:
+                      progress_cb=None, prev_codes: set = None) -> dict:
     def _cb(i, total, label):
         if progress_cb:
             progress_cb(i / max(total, 1), f"計算月線 ({i}/{total}) {label}")
@@ -106,12 +106,23 @@ def run_disposal_scan(days_back: int = 30, only_active: bool = True,
             "is_active": d.get("is_active", False),
         })
 
+    # ---- 本日新增 / 本日出關 比對 ----
+    today_codes = {it["code"] for it in items}
+    added, removed = [], []
+    if prev_codes is not None:
+        added = [it for it in items if it["code"] not in prev_codes]
+        removed_codes = prev_codes - today_codes
+        removed = sorted(removed_codes)  # 出關的只有代碼 (今天清單已無資料)
+
     from core_stock import DisposalStockFetcher
     return {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "data_date": datetime.now().strftime("%Y-%m-%d"),
         "scanned": len(items),
         "items": items,
+        "added_today": added,          # 本日新增 (完整 item)
+        "removed_today": removed,      # 本日出關 (代碼清單)
+        "all_codes": sorted(today_codes),
         "error": DisposalStockFetcher.get_last_error() or None,
     }
 
