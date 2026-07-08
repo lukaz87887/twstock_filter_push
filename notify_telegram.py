@@ -13,6 +13,7 @@ import os
 import io
 import time
 import requests
+import pandas as pd
 
 import matplotlib
 matplotlib.use("Agg")
@@ -133,6 +134,9 @@ def make_kline_png(ticker: str, name: str, note: str = "",
             twse_df = _fetch_twse_stock_day(code, months_back=6)
             if not twse_df.empty and len(twse_df) >= 20:
                 df = twse_df
+            else:
+                print(f"[notify] 證交所 {code} 資料不足 "
+                      f"({len(twse_df) if twse_df is not None else 0} 筆), 改用 yfinance")
         except Exception as e:
             print(f"[notify] 證交所 K 線資料抓取失敗 {code}: {e}")
 
@@ -140,6 +144,24 @@ def make_kline_png(ticker: str, name: str, note: str = "",
         df = StockDataFetcher.fetch_history(ticker, period="6mo")
     if df is None or df.empty:
         return None
+
+    # ---- 強力清理: 確保 OHLC 四欄都有值 (缺任一就整列刪), 避免 mplfinance 報錯 ----
+    need_cols = ["Open", "High", "Low", "Close"]
+    for c in need_cols:
+        if c not in df.columns:
+            print(f"[notify] {ticker} 缺 {c} 欄, 跳過繪圖")
+            return None
+    df = df.copy()
+    cols_to_num = need_cols + (["Volume"] if "Volume" in df.columns else [])
+    for c in cols_to_num:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+    df = df.dropna(subset=need_cols)          # OHLC 任一缺 → 整列刪
+    if "Volume" in df.columns:
+        df["Volume"] = df["Volume"].fillna(0)
+    if len(df) < 20:
+        print(f"[notify] {ticker} 有效資料不足 20 筆 ({len(df)}), 跳過繪圖")
+        return None
+
     plot_df = df.tail(120).copy()
     mc = mpf.make_marketcolors(up="#C62828", down="#2E7D32",
                                edge="inherit", wick="inherit",
