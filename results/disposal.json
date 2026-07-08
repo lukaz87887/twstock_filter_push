@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-07-08 15:56:32",
+  "generated_at": "2026-07-08 15:59:03",
   "data_date": "2026-07-08",
-  "scanned": 37,
+  "scanned": 35,
   "items": [
     {
       "code": "6217",
@@ -334,21 +334,6 @@
       "is_active": true
     },
     {
-      "code": "1447",
-      "name": "力鵬",
-      "market": "TW",
-      "close": 8.65,
-      "ma20": 7.14,
-      "diff_pct": 21.17,
-      "abs_diff_pct": 21.17,
-      "color": "⚪",
-      "change_5d_pct": 4.59,
-      "disposal_start": "2026-07-06",
-      "disposal_end": "2026-07-17",
-      "measure": "第一次處置",
-      "is_active": true
-    },
-    {
       "code": "6620",
       "name": "漢達",
       "market": "TWO",
@@ -436,21 +421,6 @@
       "disposal_start": "2026-06-30",
       "disposal_end": "2026-07-13",
       "measure": "第一次處置",
-      "is_active": true
-    },
-    {
-      "code": "1435",
-      "name": "中福",
-      "market": "TW",
-      "close": 27.05,
-      "ma20": 20.57,
-      "diff_pct": 31.47,
-      "abs_diff_pct": 31.47,
-      "color": "⚪",
-      "change_5d_pct": -9.98,
-      "disposal_start": "2026-07-03",
-      "disposal_end": "2026-07-16",
-      "measure": "第二次處置",
       "is_active": true
     },
     {
