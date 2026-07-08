@@ -1135,11 +1135,88 @@ class DisposalStockFetcher:
         return []
 
 
+def _fetch_twse_stock_day(code: str, months_back: int = 2) -> pd.DataFrame:
+    """
+    用證交所 STOCK_DAY API 抓上市個股日收盤 (繞開 Yahoo SSL 問題)。
+    一次一個月, 抓最近 months_back 個月拼起來 (算 MA20 需要 ~20 交易日)。
+    回傳 DataFrame[index=date, Close] 或空。
+    """
+    HEADERS = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                      'AppleWebKit/537.36 (KHTML, like Gecko) '
+                      'Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+    }
+    all_rows = []
+    now = datetime.now()
+    for m in range(months_back):
+        # 往前推 m 個月的第一天
+        y = now.year
+        mo = now.month - m
+        while mo <= 0:
+            mo += 12
+            y -= 1
+        date_str = f"{y}{mo:02d}01"
+        url = "https://www.twse.com.tw/exchangeReport/STOCK_DAY"
+        try:
+            r = requests.get(url, params={
+                "response": "json", "date": date_str, "stockNo": code,
+            }, headers=HEADERS, timeout=15)
+            if r.status_code != 200:
+                continue
+            payload = r.json()
+            if payload.get("stat") != "OK":
+                continue
+            fields = payload.get("fields", [])
+            # 找收盤價欄位 index
+            try:
+                i_date = fields.index("日期")
+                i_close = fields.index("收盤價")
+            except ValueError:
+                i_date, i_close = 0, 6
+            for row in payload.get("data", []):
+                try:
+                    roc = str(row[i_date]).strip()  # 民國 115/07/08
+                    parts = roc.split("/")
+                    west = datetime(int(parts[0]) + 1911,
+                                    int(parts[1]), int(parts[2]))
+                    close = float(str(row[i_close]).replace(",", ""))
+                    all_rows.append((west, close))
+                except (ValueError, IndexError):
+                    continue
+        except Exception:
+            continue
+
+    if not all_rows:
+        return pd.DataFrame()
+    all_rows.sort(key=lambda x: x[0])
+    dates = [d for d, _ in all_rows]
+    closes = [c for _, c in all_rows]
+    df = pd.DataFrame({"Close": closes}, index=pd.DatetimeIndex(dates))
+    df = df[~df.index.duplicated(keep="last")]  # 去重
+    return df
+
+
 def check_disposal_ma20(code, name, disposal):
-    ticker = f"{code}.{disposal.get('market', 'TW')}"
-    df = StockDataFetcher.fetch_history(ticker, period="3mo")
-    if df.empty or len(df) < 20:
+    market = disposal.get('market', 'TW')
+    df = None
+
+    # 上市: 優先用證交所 STOCK_DAY (繞開 Yahoo SSL)
+    if market == "TW":
+        twse_df = _fetch_twse_stock_day(code, months_back=2)
+        if not twse_df.empty and len(twse_df) >= 20:
+            df = twse_df
+
+    # 上櫃 或 證交所抓取失敗: 用 yfinance 備援
+    if df is None:
+        ticker = f"{code}.{market}"
+        yf_df = StockDataFetcher.fetch_history(ticker, period="3mo")
+        if not yf_df.empty and len(yf_df) >= 20:
+            df = yf_df
+
+    if df is None or df.empty or len(df) < 20:
         return None
+
     df = df.copy()
     df["MA20"] = df["Close"].rolling(20).mean()
     last = df.iloc[-1]
