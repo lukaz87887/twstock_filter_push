@@ -19,6 +19,13 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import mplfinance as mpf
 
+# 讓 matplotlib 重建字型快取, 才能認得部署時新裝的 fonts-noto-cjk
+try:
+    from matplotlib import font_manager
+    font_manager._load_fontmanager(try_read_cache=False)
+except Exception:
+    pass
+
 from core_stock import StockDataFetcher
 
 
@@ -28,9 +35,16 @@ def _cfg():
 
 
 def _setup_font():
-    """優先用 repo 內打包的中文字型 (fonts/tw_font.otf), 確保雲端 Linux 也能顯示中文"""
+    """
+    設定中文字型 (雲端 Linux 靠 nixpacks.toml 裝的 fonts-noto-cjk)。
+    偵測順序:
+      1. repo 內打包字型 fonts/tw_font.otf (若存在且可讀)
+      2. 系統已裝的具名 CJK 字型 (Noto/微軟正黑/蘋方等)
+      3. 自動掃描 matplotlib 字型清單裡任何含 CJK/Noto 關鍵字的字型
+    """
     from matplotlib import font_manager
-    # 1. 優先: repo 內打包的字型檔 (雲端容器沒系統中文字型時靠這個)
+
+    # 1. repo 打包字型 (可選, 沒有也沒關係)
     here = os.path.dirname(os.path.abspath(__file__))
     bundled = os.path.join(here, "fonts", "tw_font.otf")
     if os.path.exists(bundled):
@@ -42,16 +56,30 @@ def _setup_font():
             print(f"[notify] 使用打包字型: {name}")
             return
         except Exception as e:
-            print(f"[notify] 打包字型載入失敗: {e}")
-    # 2. 備援: 系統已裝的中文字型
-    for c in ["Microsoft JhengHei", "PingFang TC", "Noto Sans CJK TC",
-              "WenQuanYi Micro Hei", "Noto Sans TC", "SimHei"]:
-        if c in {f.name for f in font_manager.fontManager.ttflist}:
+            print(f"[notify] 打包字型無法使用 ({e}), 改用系統字型")
+
+    # 2. 系統具名 CJK 字型
+    available = {f.name for f in font_manager.fontManager.ttflist}
+    for c in ["Noto Sans CJK TC", "Noto Sans CJK JP", "Noto Sans CJK SC",
+              "Noto Serif CJK TC", "Microsoft JhengHei", "PingFang TC",
+              "WenQuanYi Micro Hei", "Noto Sans TC", "SimHei", "Droid Sans Fallback"]:
+        if c in available:
             plt.rcParams["font.family"] = c
             plt.rcParams["axes.unicode_minus"] = False
             print(f"[notify] 使用系統字型: {c}")
             return
+
+    # 3. 自動掃描: 任何名字含 CJK/Noto/Han 的字型
+    for f in font_manager.fontManager.ttflist:
+        nm = f.name.lower()
+        if any(k in nm for k in ["cjk", "noto", "han", "hei", "ming", "song"]):
+            plt.rcParams["font.family"] = f.name
+            plt.rcParams["axes.unicode_minus"] = False
+            print(f"[notify] 自動偵測到字型: {f.name}")
+            return
+
     print("[notify] ⚠️ 找不到中文字型, 中文可能顯示為方框")
+    print(f"[notify]    (系統字型清單: {sorted(available)[:15]}...)")
     plt.rcParams["axes.unicode_minus"] = False
 
 

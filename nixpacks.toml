@@ -1,0 +1,6 @@
+# Railway (Nixpacks) 建置設定
+# 安裝中文字型套件, 讓 matplotlib K 線圖能顯示中文
+# fonts-noto-cjk = Google Noto Sans/Serif CJK (繁簡日韓, 開源免費)
+
+[phases.setup]
+aptPkgs = ["fonts-noto-cjk", "fontconfig"]
