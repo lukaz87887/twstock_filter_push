@@ -17,22 +17,6 @@ import yfinance as yf
 from datetime import datetime, timedelta
 from scipy.stats import linregress
 
-# ==================================================================
-#   股票池
-# ==================================================================
-DEFAULT_STOCK_POOL = {
-    "2330.TW": "台積電", "2317.TW": "鴻海",   "2454.TW": "聯發科",
-    "2308.TW": "台達電", "2382.TW": "廣達",   "2891.TW": "中信金",
-    "2881.TW": "富邦金", "3008.TW": "大立光", "2412.TW": "中華電",
-    "1301.TW": "台塑",   "1303.TW": "南亞",   "2002.TW": "中鋼",
-    "2603.TW": "長榮",   "2609.TW": "陽明",   "3481.TW": "群創",
-    "6282.TW": "康舒",   "3035.TW": "智原",   "3037.TW": "欣興",
-    "3017.TW": "奇鋐",   "2376.TW": "技嘉",   "2377.TW": "微星",
-    "2379.TW": "瑞昱",   "3231.TW": "緯創",   "2356.TW": "英業達",
-    "2474.TW": "可成",   "6505.TW": "台塑化", "5871.TW": "中租-KY",
-    "2207.TW": "和泰車", "1216.TW": "統一",   "2880.TW": "華南金",
-}
-
 # 六種策略定義 (給 UI 用)
 STRATEGY_LEVELS = [
     ("basic",     "🟢 Basic — 多頭排列 + 帶量突破",
@@ -474,61 +458,6 @@ class MomentumScreener:
             "level": "rs_strong",
             "matched": f"抗跌 {count} 次",
         }
-
-    # ---------- 六策略統一掃描 ----------
-    @classmethod
-    def scan_pool(cls, level="basic", pool=None, progress_cb=None):
-        pool = pool or DEFAULT_STOCK_POOL
-        hits = []
-        total = len(pool)
-
-        benchmark_df = None
-        crash_dates, latest_crash = None, None
-        if level == "strict":
-            benchmark_df = StockDataFetcher.fetch_history("^TWII", period="2y")
-        if level in ("rs_strong", "all"):
-            crash_dates, latest_crash = cls.get_market_crash_dates()
-
-        for i, (tk, nm) in enumerate(pool.items(), 1):
-            if progress_cb:
-                progress_cb(i, total, f"{tk} {nm}")
-            info = None
-            try:
-                if level in ("basic", "standard", "strict"):
-                    info = cls.check_stock(tk, nm, level=level,
-                                           benchmark_df=benchmark_df)
-                elif level == "channel":
-                    info = cls.check_channel_breakout(tk, nm)
-                elif level == "rs_strong":
-                    if crash_dates:
-                        info = cls.check_rs_strong(tk, nm, crash_dates,
-                                                   latest_crash)
-                elif level == "all":
-                    matched = []
-                    r = cls.check_stock(tk, nm, level="standard")
-                    if r:
-                        matched.append("Standard")
-                        info = r
-                    r2 = cls.check_channel_breakout(tk, nm)
-                    if r2:
-                        matched.append("Channel")
-                        info = info or r2
-                    if crash_dates:
-                        r3 = cls.check_rs_strong(tk, nm, crash_dates,
-                                                 latest_crash)
-                        if r3:
-                            matched.append("RS強")
-                            info = info or r3
-                    if info:
-                        info = dict(info)
-                        info["matched"] = " + ".join(matched)
-            except Exception:
-                info = None
-            if info:
-                hits.append(info)
-        hits.sort(key=lambda x: x["vol_ratio"], reverse=True)
-        return hits
-
 
     # =====================================================
     #   v3: 以現成 DataFrame 檢查 (全市場批次掃描用)

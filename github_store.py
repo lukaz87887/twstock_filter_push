@@ -31,10 +31,30 @@ def _cfg():
 
 def push_json(path_in_repo: str, data: dict,
               commit_msg: str = None) -> tuple[bool, str]:
-    """
-    把 data 以 JSON 上傳/更新到 repo 的 path_in_repo。
-    回傳 (成功, 訊息)。
-    """
+    """把 data 以 JSON 上傳/更新到 repo 的 path_in_repo。回傳 (成功, 訊息)。"""
+    content_str = json.dumps(data, ensure_ascii=False, indent=2)
+    content_b64 = base64.b64encode(content_str.encode("utf-8")).decode("ascii")
+    return _push_content(path_in_repo, content_b64,
+                         commit_msg or f"update {path_in_repo}")
+
+
+def push_bytes(path_in_repo: str, raw: bytes,
+               commit_msg: str = None) -> tuple[bool, str]:
+    """把二進位資料 (如 PNG) 上傳到 repo。回傳 (成功, raw_url 或錯誤訊息)。
+    成功時第二個值是可公開存取的 raw URL (給 LINE 圖片訊息用)。"""
+    _, repo, branch = _cfg()
+    content_b64 = base64.b64encode(raw).decode("ascii")
+    ok, msg = _push_content(path_in_repo, content_b64,
+                            commit_msg or f"update {path_in_repo}")
+    if ok:
+        raw_url = f"https://raw.githubusercontent.com/{repo}/{branch}/{path_in_repo}"
+        return True, raw_url
+    return False, msg
+
+
+def _push_content(path_in_repo: str, content_b64: str,
+                  commit_msg: str) -> tuple[bool, str]:
+    """底層: 上傳 base64 內容到 GitHub (JSON/二進位共用)。"""
     token, repo, branch = _cfg()
     if not token or not repo:
         return False, "缺 GITHUB_TOKEN / GITHUB_REPO 環境變數"
@@ -46,12 +66,8 @@ def push_json(path_in_repo: str, data: dict,
         "X-GitHub-Api-Version": "2022-11-28",
     }
 
-    content_str = json.dumps(data, ensure_ascii=False, indent=2)
-    content_b64 = base64.b64encode(content_str.encode("utf-8")).decode("ascii")
-
     # 最多重試 3 次: 遇 409 (sha 過期) 就重新抓最新 sha 再 PUT
     for attempt in range(3):
-        # 每次都重新抓最新 sha (409 通常是 sha 過期造成)
         sha = None
         try:
             r = requests.get(url, headers=headers,
@@ -62,7 +78,7 @@ def push_json(path_in_repo: str, data: dict,
             pass
 
         payload = {
-            "message": commit_msg or f"update {path_in_repo}",
+            "message": commit_msg,
             "content": content_b64,
             "branch": branch,
         }
@@ -75,7 +91,7 @@ def push_json(path_in_repo: str, data: dict,
                 return True, "OK"
             if r.status_code == 409 and attempt < 2:
                 import time as _t
-                _t.sleep(1.0)  # 稍等再重抓 sha 重試
+                _t.sleep(1.0)
                 continue
             return False, f"HTTP {r.status_code}: {r.text[:200]}"
         except Exception as e:
