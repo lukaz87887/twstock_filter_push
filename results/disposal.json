@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-10 10:30:11",
+  "generated_at": "2026-07-10 10:31:32",
   "data_date": "2026-07-10",
   "scanned": 29,
   "items": [
@@ -15,7 +15,7 @@
       "change_5d_pct": -5.74,
       "disposal_start": "2026-07-02",
       "disposal_end": "2026-07-15",
-      "measure": "最近十個營業日已有六次",
+      "measure": "第一次處置",
       "is_active": true
     },
     {
@@ -60,7 +60,7 @@
       "change_5d_pct": -1.37,
       "disposal_start": "2026-06-29",
       "disposal_end": "2026-07-10",
-      "measure": "連續三次",
+      "measure": "第一次處置",
       "is_active": true
     },
     {
@@ -75,7 +75,7 @@
       "change_5d_pct": -4.23,
       "disposal_start": "2026-07-03",
       "disposal_end": "2026-07-16",
-      "measure": "最近十個營業日已有六次",
+      "measure": "第二次處置",
       "is_active": true
     },
     {
@@ -90,7 +90,7 @@
       "change_5d_pct": 0.2,
       "disposal_start": "2026-06-30",
       "disposal_end": "2026-07-13",
-      "measure": "最近十個營業日已有六次",
+      "measure": "第一次處置",
       "is_active": true
     },
     {
@@ -105,7 +105,7 @@
       "change_5d_pct": 1.0,
       "disposal_start": "2026-06-30",
       "disposal_end": "2026-07-13",
-      "measure": "連續三次",
+      "measure": "第一次處置",
       "is_active": true
     },
     {
@@ -135,7 +135,7 @@
       "change_5d_pct": -4.22,
       "disposal_start": "2026-07-03",
       "disposal_end": "2026-07-16",
-      "measure": "最近十個營業日已有六次",
+      "measure": "第二次處置",
       "is_active": true
     },
     {
@@ -165,7 +165,7 @@
       "change_5d_pct": -9.66,
       "disposal_start": "2026-07-06",
       "disposal_end": "2026-07-17",
-      "measure": "連續三次",
+      "measure": "第一次處置",
       "is_active": true
     },
     {
@@ -195,7 +195,7 @@
       "change_5d_pct": -7.81,
       "disposal_start": "2026-07-06",
       "disposal_end": "2026-07-17",
-      "measure": "連續三次",
+      "measure": "第一次處置",
       "is_active": true
     },
     {
@@ -240,7 +240,7 @@
       "change_5d_pct": 5.38,
       "disposal_start": "2026-07-06",
       "disposal_end": "2026-07-17",
-      "measure": "連續三次",
+      "measure": "第一次處置",
       "is_active": true
     },
     {
@@ -255,7 +255,7 @@
       "change_5d_pct": 4.41,
       "disposal_start": "2026-07-07",
       "disposal_end": "2026-07-20",
-      "measure": "連續三次",
+      "measure": "第二次處置",
       "is_active": true
     },
     {
@@ -270,7 +270,7 @@
       "change_5d_pct": -0.61,
       "disposal_start": "2026-07-09",
       "disposal_end": "2026-07-24",
-      "measure": "連續三次及當日沖銷標準",
+      "measure": "第一次處置",
       "is_active": true
     },
     {
@@ -285,7 +285,7 @@
       "change_5d_pct": 3.08,
       "disposal_start": "2026-07-07",
       "disposal_end": "2026-07-20",
-      "measure": "連續三次",
+      "measure": "第一次處置",
       "is_active": true
     },
     {
@@ -315,7 +315,7 @@
       "change_5d_pct": 11.29,
       "disposal_start": "2026-06-30",
       "disposal_end": "2026-07-13",
-      "measure": "連續三次",
+      "measure": "第一次處置",
       "is_active": true
     },
     {
@@ -345,7 +345,7 @@
       "change_5d_pct": 33.66,
       "disposal_start": "2026-07-10",
       "disposal_end": "2026-07-23",
-      "measure": "連續三次",
+      "measure": "第一次處置",
       "is_active": true
     },
     {
@@ -360,7 +360,7 @@
       "change_5d_pct": -11.65,
       "disposal_start": "2026-07-03",
       "disposal_end": "2026-07-16",
-      "measure": "連續三次",
+      "measure": "第二次處置",
       "is_active": true
     },
     {
@@ -375,7 +375,7 @@
       "change_5d_pct": 12.86,
       "disposal_start": "2026-07-09",
       "disposal_end": "2026-07-22",
-      "measure": "連續三次",
+      "measure": "第二次處置",
       "is_active": true
     },
     {
@@ -390,7 +390,7 @@
       "change_5d_pct": 22.04,
       "disposal_start": "2026-07-03",
       "disposal_end": "2026-07-16",
-      "measure": "最近十個營業日已有六次",
+      "measure": "第一次處置",
       "is_active": true
     },
     {
@@ -420,7 +420,7 @@
       "change_5d_pct": -0.19,
       "disposal_start": "2026-07-03",
       "disposal_end": "2026-07-16",
-      "measure": "連續三次",
+      "measure": "第二次處置",
       "is_active": true
     },
     {
@@ -435,7 +435,7 @@
       "change_5d_pct": 25.64,
       "disposal_start": "2026-07-08",
       "disposal_end": "2026-07-21",
-      "measure": "連續三次",
+      "measure": "第一次處置",
       "is_active": true
     }
   ],
