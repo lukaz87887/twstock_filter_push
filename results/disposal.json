@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-10 08:00:23",
+  "generated_at": "2026-07-10 10:28:34",
   "data_date": "2026-07-10",
   "scanned": 29,
   "items": [
@@ -439,32 +439,8 @@
       "is_active": true
     }
   ],
-  "added_today": [
-    {
-      "code": "4169",
-      "name": "泰宗",
-      "market": "TW",
-      "close": 270.0,
-      "ma20": 199.4,
-      "diff_pct": 35.41,
-      "abs_diff_pct": 35.41,
-      "color": "⚪",
-      "change_5d_pct": 33.66,
-      "disposal_start": "2026-07-10",
-      "disposal_end": "2026-07-23",
-      "measure": "第一次處置",
-      "is_active": true
-    }
-  ],
-  "removed_today": [
-    "2481",
-    "3624",
-    "5425",
-    "5489",
-    "6141",
-    "6620",
-    "6834"
-  ],
+  "added_today": [],
+  "removed_today": [],
   "all_codes": [
     "1435",
     "1447",
