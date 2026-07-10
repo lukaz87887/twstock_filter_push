@@ -1274,3 +1274,69 @@ def scan_disposal_ma20(days_back=30, only_active=True, progress_cb=None):
             results.append(info)
     results.sort(key=lambda x: x["abs_diff_pct"])
     return results
+
+
+# ==================================================================
+#   判斷「證交所今天有沒有開盤/更新資料」 (給排程器用)
+# ==================================================================
+def is_market_open_today() -> tuple[bool, str]:
+    """
+    檢查證交所「今天日期」有沒有大盤行情資料。
+    有 → 今天有開盤且資料已更新 (可推播)
+    沒有 → 假日/颱風假/尚未更新 (應延後或不推)
+
+    回傳 (是否就緒, 說明訊息)。
+    用 MI_INDEX 帶今天日期查詢, stat=OK 且有資料表示已就緒。
+    """
+    HEADERS = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                      'AppleWebKit/537.36 (KHTML, like Gecko) '
+                      'Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+    }
+    today = datetime.now()
+    # 週末直接判定沒開盤 (不用打 API)
+    if today.weekday() >= 5:
+        return False, "週末休市"
+
+    date_str = today.strftime("%Y%m%d")
+    url = "https://www.twse.com.tw/exchangeReport/MI_INDEX"
+    try:
+        r = requests.get(url, params={
+            "response": "json", "date": date_str, "type": "ALLBUT0999",
+        }, headers=HEADERS, timeout=20)
+        if r.status_code != 200:
+            return False, f"HTTP {r.status_code} (證交所暫時無回應)"
+        payload = r.json()
+        if payload.get("stat") != "OK":
+            # stat 不 OK = 今天沒有資料 (假日/颱風/尚未更新)
+            return False, f"今日尚無行情資料 (stat={payload.get('stat','?')})"
+        # 有資料表 = 確實有開盤且已更新
+        for t in payload.get("tables", []):
+            if t.get("data"):
+                return True, "今日行情已更新"
+        # 舊格式
+        for i in range(9, 0, -1):
+            if payload.get(f"data{i}"):
+                return True, "今日行情已更新"
+        return False, "回應無資料表 (可能尚未更新)"
+    except Exception as e:
+        return False, f"檢查失敗: {e}"
+
+
+# 台灣證交所固定國定假日休市 (每年更新; 颱風臨時假靠 is_market_open_today 動態判斷)
+# 格式 "MM-DD" (不分年份的固定假日) — 農曆假日每年不同, 用動態判斷補足
+TW_FIXED_HOLIDAYS = {
+    "01-01",  # 元旦
+    "02-28",  # 和平紀念日
+    "04-04",  # 兒童節
+    "04-05",  # 清明節 (約)
+    "05-01",  # 勞動節
+    "10-10",  # 國慶日
+}
+
+
+def is_fixed_holiday(dt: datetime = None) -> bool:
+    """是否為固定國定假日 (快速判斷, 不用打 API)。農曆假日與颱風假靠 is_market_open_today。"""
+    dt = dt or datetime.now()
+    return dt.strftime("%m-%d") in TW_FIXED_HOLIDAYS
