@@ -83,7 +83,8 @@ def run_momentum_scan(level: str = "all", preset: str = "standard",
 #   處置股月線掃描 (上市+上櫃)
 # ==================================================================
 def run_disposal_scan(days_back: int = 30, only_active: bool = True,
-                      progress_cb=None, prev_codes: set = None) -> dict:
+                      progress_cb=None, prev_codes=None) -> dict:
+    """prev_codes: {代碼: 名稱} 字典 (或舊格式的 set), 用於算本日新增/出關"""
     def _cb(i, total, label):
         if progress_cb:
             progress_cb(i / max(total, 1), f"計算月線 ({i}/{total}) {label}")
@@ -110,9 +111,16 @@ def run_disposal_scan(days_back: int = 30, only_active: bool = True,
     today_codes = {it["code"] for it in items}
     added, removed = [], []
     if prev_codes is not None:
-        added = [it for it in items if it["code"] not in prev_codes]
-        removed_codes = prev_codes - today_codes
-        removed = sorted(removed_codes)  # 出關的只有代碼 (今天清單已無資料)
+        # 相容: prev_codes 可能是 dict {code: name} 或舊的 set
+        if isinstance(prev_codes, dict):
+            prev_map = prev_codes
+        else:
+            prev_map = {c: "" for c in prev_codes}
+
+        added = [it for it in items if it["code"] not in prev_map]
+        # ★ 出關名單帶上中文名稱 (從昨天的資料撈)
+        removed = [{"code": c, "name": prev_map.get(c, "")}
+                   for c in sorted(set(prev_map) - today_codes)]
 
     from core_stock import DisposalStockFetcher
     return {
@@ -121,7 +129,7 @@ def run_disposal_scan(days_back: int = 30, only_active: bool = True,
         "scanned": len(items),
         "items": items,
         "added_today": added,          # 本日新增 (完整 item)
-        "removed_today": removed,      # 本日出關 (代碼清單)
+        "removed_today": removed,      # 本日出關 [{code, name}, ...]
         "all_codes": sorted(today_codes),
         "error": DisposalStockFetcher.get_last_error() or None,
     }

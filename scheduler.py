@@ -242,7 +242,8 @@ def job_morning_disposal(force=False):
 
 
 def _load_prev_disposal_codes():
-    """讀 GitHub 上現有的 disposal.json, 取出昨天的處置代碼集合"""
+    """讀 GitHub 上現有的 disposal.json, 回傳昨天的 {代碼: 名稱} 字典
+    (帶名稱才能在「本日出關」顯示中文股名)"""
     import requests as _rq
     repo = _env("GITHUB_REPO", "")
     branch = _env("GITHUB_BRANCH", "main")
@@ -253,10 +254,13 @@ def _load_prev_disposal_codes():
         r = _rq.get(url, timeout=10)
         if r.status_code == 200:
             data = r.json()
-            # 用 all_codes 或從 items 取
+            items = data.get("items", [])
+            if items:
+                return {it["code"]: it.get("name", "")
+                        for it in items if it.get("code")}
+            # 舊格式相容: 只有 all_codes 沒有名稱
             if "all_codes" in data:
-                return set(data["all_codes"])
-            return {it["code"] for it in data.get("items", [])}
+                return {c: "" for c in data["all_codes"]}
     except Exception as e:
         _log(f"  (讀取昨日清單失敗, 首次執行屬正常: {e})")
     return None

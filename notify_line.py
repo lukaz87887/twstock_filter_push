@@ -106,7 +106,14 @@ def push_disposal_line(result: dict, chart_urls: dict = None):
     else:
         msg.append("\n🆕 本日新增: 無")
     if removed:
-        msg.append(f"\n✅ 本日出關 {len(removed)} 檔: " + "、".join(removed))
+        _rm = []
+        for r in removed:
+            if isinstance(r, dict):
+                nm = r.get("name", "")
+                _rm.append(f"{r['code']}{nm}" if nm else r["code"])
+            else:
+                _rm.append(str(r))
+        msg.append(f"\n✅ 本日出關 {len(removed)} 檔: " + "、".join(_rm))
     else:
         msg.append("\n✅ 本日出關: 無")
 

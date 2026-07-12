@@ -338,7 +338,15 @@ def push_disposal(result: dict, top_n: int = 30, with_charts: bool = True):
 
     if removed:
         msg.append(f"\n✅ 本日出關 {len(removed)} 檔:")
-        msg.append("  " + "、".join(removed))
+        # 相容: removed 可能是 [{code,name}] 或舊的 [code字串]
+        _rm = []
+        for r in removed:
+            if isinstance(r, dict):
+                nm = r.get("name", "")
+                _rm.append(f"{r['code']}{nm}" if nm else r["code"])
+            else:
+                _rm.append(str(r))
+        msg.append("  " + "、".join(_rm))
     else:
         msg.append("\n✅ 本日出關: 無")
 
