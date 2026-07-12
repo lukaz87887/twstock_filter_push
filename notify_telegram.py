@@ -395,15 +395,17 @@ def make_combined_kline_png(items: list, data_date: str = "") -> bytes | None:
     nrows = math.ceil(n / ncols)
 
     # 每個 subplot 的實體尺寸 (吋) — 固定, 所以總圖隨檔數變大
-    SUB_W, SUB_H = 7.5, 4.5
+    # 加高一點容納量能副圖
+    SUB_W, SUB_H = 7.5, 5.4
     fig_w = SUB_W * ncols
     fig_h = SUB_H * nrows + 0.6      # +0.6 給頂部標題列
 
     fig = plt.figure(figsize=(fig_w, fig_h), dpi=100, facecolor="white")
-    gs = GridSpec(nrows, ncols, figure=fig,
-                  hspace=0.35, wspace=0.18,
-                  top=1 - 0.5 / fig_h, bottom=0.35 / fig_h,
-                  left=0.05, right=0.97)
+    # 外層網格: 每檔股票一格
+    gs_outer = GridSpec(nrows, ncols, figure=fig,
+                        hspace=0.38, wspace=0.20,
+                        top=1 - 0.5 / fig_h, bottom=0.35 / fig_h,
+                        left=0.06, right=0.97)
 
     # 中文字型 (各用途分別指定大小, 避免 FontProperties 覆蓋 fontsize)
     fp = None            # 一般用 (軸標籤)
@@ -442,7 +444,11 @@ def make_combined_kline_png(items: list, data_date: str = "") -> bytes | None:
 
         plot_df = df.tail(120).copy()
         r, c = divmod(drawn, ncols)
-        ax = fig.add_subplot(gs[r, c])
+
+        # ★ 每格內再切成上下兩層: K線(3) + 量能(1)
+        gs_in = gs_outer[r, c].subgridspec(4, 1, hspace=0.08)
+        ax = fig.add_subplot(gs_in[0:3, 0])          # K 線主圖
+        ax_vol = fig.add_subplot(gs_in[3, 0], sharex=ax)  # 量能副圖
 
         # --- 畫 K 線 (手繪, 才能完全控制) ---
         _draw_candles(ax, plot_df)
@@ -452,8 +458,20 @@ def make_combined_kline_png(items: list, data_date: str = "") -> bytes | None:
         ax.plot(range(len(plot_df)), ma20.values,
                 color="#1E90FF", linewidth=1.8, label="20MA", zorder=3)
 
-        # --- 處置期間網底 (含歷史多段) ---
+        # --- ★ 成交量 (紅漲綠跌) ---
+        if "Volume" in plot_df.columns:
+            vols = plot_df["Volume"].fillna(0).values / 1000   # 股 → 張
+            vcolors = ["#C62828" if cl >= op else "#2E7D32"
+                       for cl, op in zip(plot_df["Close"], plot_df["Open"])]
+            ax_vol.bar(range(len(plot_df)), vols, color=vcolors,
+                       width=0.7, zorder=2)
+            vmax = float(vols.max()) if len(vols) else 0
+            if vmax > 0:
+                ax_vol.set_ylim(0, vmax * 1.15)
+
+        # --- 處置期間網底 (K線 + 量能兩層都畫) ---
         _draw_spans_on_ax(ax, plot_df, code)
+        _draw_spans_on_ax(ax_vol, plot_df, code)
 
         # --- 標題 ---
         mk = "櫃" if market == "TWO" else "市"
@@ -464,23 +482,32 @@ def make_combined_kline_png(items: list, data_date: str = "") -> bytes | None:
         ax.set_title(f"{code}({mk}) {name}{diff_s}",
                      color="#1a3a5c", pad=12, **_title_kw)
 
-        # --- 軸 ---
+        # --- K 線主圖的軸 ---
         ax.grid(True, linestyle=":", alpha=0.35)
-        ax.tick_params(labelsize=11)
-        # x 軸日期標籤
+        ax.tick_params(labelsize=11, labelbottom=False)  # x 標籤交給量能圖
         idx = plot_df.index
-        step = max(len(idx) // 5, 1)
-        ticks = list(range(0, len(idx), step))
-        ax.set_xticks(ticks)
-        ax.set_xticklabels([idx[t].strftime("%m/%d") for t in ticks],
-                           fontsize=11, rotation=0)
         ax.set_xlim(-1, len(plot_df))
-        # y 軸留白
         lo, hi = plot_df["Low"].min(), plot_df["High"].max()
         pad = (hi - lo) * 0.08
         ax.set_ylim(lo - pad, hi + pad)
         _ylab_kw = {"fontproperties": fp} if fp else {"fontsize": 11}
         ax.set_ylabel("價格", **_ylab_kw)
+
+        # --- 量能副圖的軸 ---
+        ax_vol.grid(True, linestyle=":", alpha=0.3)
+        ax_vol.tick_params(labelsize=10)
+        step = max(len(idx) // 5, 1)
+        ticks = list(range(0, len(idx), step))
+        ax_vol.set_xticks(ticks)
+        ax_vol.set_xticklabels([idx[t].strftime("%m/%d") for t in ticks],
+                               fontsize=11, rotation=0)
+        ax_vol.set_xlim(-1, len(plot_df))
+        _vlab_kw = {"fontproperties": fp} if fp else {"fontsize": 10}
+        ax_vol.set_ylabel("量(張)", **_vlab_kw)
+        # 量能刻度用千分位
+        from matplotlib.ticker import FuncFormatter
+        ax_vol.yaxis.set_major_formatter(
+            FuncFormatter(lambda x, _: f"{int(x):,}" if x >= 1 else ""))
 
         drawn += 1
 
