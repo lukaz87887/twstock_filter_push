@@ -60,12 +60,14 @@ _last_pushed_date = {"disposal": None}
 
 
 def _notify_all(text: str):
-    """同時發 Telegram + LINE 純文字通知"""
+    """同時發 Telegram + LINE 純文字通知 (test 模式只發 Telegram)"""
     if _env("TELEGRAM_BOT_TOKEN") and _env("TELEGRAM_CHAT_ID"):
         try:
             send_message(text)
         except Exception:
             pass
+    if _is_test_mode():
+        return   # 🧪 測試模式: LINE 靜音
     if _env("LINE_CHANNEL_ACCESS_TOKEN") and _env("LINE_TO"):
         try:
             notify_line.send_text(text)
@@ -140,6 +142,30 @@ def _gen_and_upload_charts(result: dict) -> dict:
     return chart_urls
 
 
+def _chart_targets() -> set:
+    """
+    CHART_TARGETS 環境變數: 哪些管道要附 K 線圖。
+      CHART_TARGETS=test            → 🧪 測試模式: 只推 Telegram (含圖), LINE 完全不推
+      CHART_TARGETS=telegram,line   → 兩個都附圖
+      CHART_TARGETS=telegram        → 只有 Telegram 附圖 (LINE 仍推文字)
+      CHART_TARGETS=line            → 只有 LINE 附圖
+      CHART_TARGETS=none (或留空)   → 都不附圖 (只推文字)
+    未設定時預設 telegram,line (兩個都附)。
+    """
+    raw = _env("CHART_TARGETS", "telegram,line").strip().lower()
+    if raw in ("", "none", "off", "0"):
+        return set()
+    if raw == "test":
+        return {"telegram"}   # test 模式只有 Telegram 附圖
+    return {t.strip() for t in raw.split(",") if t.strip()}
+
+
+def _is_test_mode() -> bool:
+    """🧪 測試模式: CHART_TARGETS=test → 只推 Telegram, LINE 完全靜音
+    (方便測試時不浪費 LINE 免費額度, 也不會一直洗 LINE)"""
+    return _env("CHART_TARGETS", "").strip().lower() == "test"
+
+
 def job_disposal(force=False, label="處置股"):
     if not force and not _is_weekday():
         _log(f"週末, 跳過{label}")
@@ -156,24 +182,39 @@ def job_disposal(force=False, label="處置股"):
         _log(f"  本日新增 {len(result.get('added_today',[]))} 檔, "
              f"出關 {len(result.get('removed_today',[]))} 檔")
 
-        with_charts = _env("PUSH_CHARTS", "1") == "1"
+        targets = _chart_targets()
+        test_mode = _is_test_mode()
+        tg_charts = "telegram" in targets
+        line_charts = "line" in targets
 
+        if test_mode:
+            _log("  🧪 測試模式 (CHART_TARGETS=test): 只推 Telegram(含圖), LINE 靜音")
+        else:
+            _log(f"  K線圖設定 CHART_TARGETS: "
+                 f"Telegram={'ON' if tg_charts else 'off'}, "
+                 f"LINE={'ON' if line_charts else 'off'}")
+
+        # 只有 LINE 要圖時才需上傳 GitHub (Telegram 直接傳位元組)
         chart_urls = {}
-        if with_charts:
+        if line_charts and not test_mode:
             chart_urls = _gen_and_upload_charts(result)
-            _log(f"  已產生 {len(chart_urls)} 張 K 線圖")
+            _log(f"  已產生並上傳 {len(chart_urls)} 張 K 線圖 (供 LINE 使用)")
 
         if _env("TELEGRAM_BOT_TOKEN") and _env("TELEGRAM_CHAT_ID"):
             try:
-                push_disposal(result, with_charts=with_charts)
-                _log("  ✔ Telegram 推播完成")
+                push_disposal(result, with_charts=tg_charts)
+                _log(f"  ✔ Telegram 推播完成 (附圖={tg_charts})")
             except Exception as e:
                 _log(f"  ✘ Telegram 推播失敗: {e}")
 
-        if _env("LINE_CHANNEL_ACCESS_TOKEN") and _env("LINE_TO"):
+        # 測試模式 → LINE 完全不推
+        if test_mode:
+            _log("  ⏭ LINE 已跳過 (測試模式)")
+        elif _env("LINE_CHANNEL_ACCESS_TOKEN") and _env("LINE_TO"):
             try:
-                notify_line.push_disposal_line(result, chart_urls=chart_urls)
-                _log("  ✔ LINE 推播完成")
+                notify_line.push_disposal_line(
+                    result, chart_urls=chart_urls if line_charts else {})
+                _log(f"  ✔ LINE 推播完成 (附圖={line_charts})")
             except Exception as e:
                 _log(f"  ✘ LINE 推播失敗: {e}")
 
@@ -249,6 +290,7 @@ def main():
 
     tg_on = bool(_env("TELEGRAM_BOT_TOKEN") and _env("TELEGRAM_CHAT_ID"))
     line_on = bool(_env("LINE_CHANNEL_ACCESS_TOKEN") and _env("LINE_TO"))
+    test_mode = _is_test_mode()
 
     _log("=" * 50)
     _log("台股處置股排程器啟動")
@@ -257,7 +299,9 @@ def main():
     _log(f"     到 00:00 仍無資料 → 發「未抓到」通知 (假日/颱風除外)")
     _log(f"  🌅 早上提醒: 每個平日 {morning}")
     _log(f"  推播管道: Telegram={'ON' if tg_on else 'off'}  "
-         f"LINE={'ON' if line_on else 'off'}")
+         f"LINE={'靜音(測試模式)' if test_mode else ('ON' if line_on else 'off')}")
+    if test_mode:
+        _log("  🧪 CHART_TARGETS=test → 只推 Telegram(含圖), LINE 完全不推")
     _log(f"  時區 TZ={_env('TZ', '(未設定, 建議設 Asia/Taipei)')}")
     _log(f"  現在時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S %A')}")
     _log("=" * 50)

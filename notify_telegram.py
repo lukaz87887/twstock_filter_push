@@ -178,13 +178,18 @@ def make_kline_png(ticker: str, name: str, note: str = "",
     style = mpf.make_mpf_style(marketcolors=mc, gridstyle=":",
                                y_on_right=True, rc=_rc)
     mav = (20,) if ma20_only else (5, 20, 60)
-    code = ticker.rsplit(".", 1)[0]
     buf = io.BytesIO()
     try:
-        mpf.plot(plot_df, type="candle", volume=True, mav=mav, style=style,
-                 title=f"\n{code} {name}  {note}",
-                 figsize=(10, 7), tight_layout=True,
-                 savefig=dict(fname=buf, dpi=110, format="png"))
+        # returnfig=True 才能拿到 axes 畫處置期間網底
+        fig, axes = mpf.plot(plot_df, type="candle", volume=True, mav=mav,
+                             style=style, title=f"\n{code} {name}  {note}",
+                             figsize=(10, 7), tight_layout=True,
+                             returnfig=True)
+
+        # ---- 畫處置期間網底 (K 線 + 量能兩個副圖都畫) ----
+        _draw_disposal_spans(axes, plot_df, code)
+
+        fig.savefig(buf, dpi=110, format="png")
         buf.seek(0)
         return buf.getvalue()
     except Exception as e:
@@ -192,6 +197,73 @@ def make_kline_png(ticker: str, name: str, note: str = "",
         return None
     finally:
         plt.close("all")
+
+
+def _draw_disposal_spans(axes, plot_df, code: str):
+    """
+    在 K 線圖與量能圖上, 對「落在圖表時間範圍內」的每一段處置期間畫紅色網底。
+    只畫圖上看得到的期間 (K 線顯示到哪, 就只標到哪)。
+    """
+    try:
+        from core_stock import get_disposal_periods
+        periods = get_disposal_periods(code, days_back=200)
+        if not periods:
+            return
+
+        # 圖表的時間範圍 (mplfinance 用 bar index 當 x 軸)
+        idx = plot_df.index
+        chart_start = idx[0]
+        chart_end = idx[-1]
+
+        # 把日期對應到 bar index
+        def _to_bar_x(ts):
+            ts = pd.Timestamp(ts).normalize()
+            # 找最接近的 bar 位置
+            pos = idx.searchsorted(ts)
+            return max(0, min(pos, len(idx) - 1))
+
+        drawn = 0
+        for p in periods:
+            try:
+                ds = pd.Timestamp(p["start"])
+                de = pd.Timestamp(p["end"])
+            except Exception:
+                continue
+            # ★ 只畫「與圖表時間範圍有重疊」的處置期間
+            if de < chart_start or ds > chart_end:
+                continue
+            # 裁切到圖表範圍內
+            x0 = _to_bar_x(max(ds, chart_start))
+            x1 = _to_bar_x(min(de, chart_end))
+            if x1 <= x0:
+                x1 = x0 + 0.8   # 至少畫一根寬度
+
+            # 在所有子圖 (K線 + 量能) 都畫網底
+            for ax in axes:
+                if ax is None:
+                    continue
+                try:
+                    ax.axvspan(x0 - 0.4, x1 + 0.4,
+                               color="#FF6B6B", alpha=0.15,
+                               zorder=0, linewidth=0)
+                except Exception:
+                    pass
+            drawn += 1
+
+        # 在主圖標註 (只標一次, 避免重疊)
+        if drawn and axes:
+            try:
+                ax_main = axes[0]
+                ax_main.text(
+                    0.99, 0.97, "🚨 處置期間" if False else "處置期間",
+                    transform=ax_main.transAxes,
+                    ha="right", va="top", fontsize=9, color="#C62828",
+                    bbox=dict(boxstyle="round,pad=0.3", facecolor="white",
+                              edgecolor="#C62828", alpha=0.9))
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"[notify] 處置網底繪製失敗 {code}: {e}")
 
 
 # ==================================================================

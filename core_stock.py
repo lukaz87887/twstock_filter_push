@@ -1269,3 +1269,77 @@ def is_fixed_holiday(dt: datetime = None) -> bool:
     """是否為固定國定假日 (快速判斷, 不用打 API)。農曆假日與颱風假靠 is_market_open_today。"""
     dt = dt or datetime.now()
     return dt.strftime("%m-%d") in TW_FIXED_HOLIDAYS
+
+
+# ==================================================================
+#   取得個股「歷史處置期間」清單 (給 K 線圖畫網底用)
+# ==================================================================
+_disposal_history_cache = {}
+
+
+def get_disposal_periods(code: str, days_back: int = 200) -> list[dict]:
+    """
+    取得某檔股票在過去 days_back 天內「所有」處置期間 (含已結束的)。
+    用於在 K 線圖上畫出每一段處置期間的網底。
+
+    與 fetch_disposal_list 的差異:
+      • fetch_disposal_list: 只留最新一筆 (判斷「目前是否處置中」)
+      • 這裡: 保留同一檔的「所有」處置紀錄 (歷史多次處置都要)
+
+    回傳: [{start, end, measure}, ...] 依 start 排序
+    """
+    code = str(code).strip()
+    cache_key = f"{code}_{days_back}_{datetime.now().strftime('%Y-%m-%d')}"
+    if cache_key in _disposal_history_cache:
+        return _disposal_history_cache[cache_key]
+
+    D = DisposalStockFetcher
+    periods = []
+    end = datetime.now()
+    start = end - timedelta(days=days_back)
+
+    # ---- 上市: 證交所公告 (帶日期範圍) ----
+    try:
+        r = requests.get(D.API_URL, params={
+            "response": "json",
+            "startDate": start.strftime("%Y%m%d"),
+            "endDate": end.strftime("%Y%m%d"),
+        }, headers=D.HEADERS, timeout=15)
+        if r.status_code == 200:
+            payload = r.json()
+            if payload.get("stat") == "OK":
+                for row in payload.get("data", []):
+                    if len(row) < 9:
+                        continue
+                    if str(row[2]).strip() != code:
+                        continue
+                    ds, de = D._parse_period(str(row[6]))
+                    if ds and de:
+                        periods.append({"start": ds, "end": de,
+                                        "measure": str(row[7]).strip()})
+    except Exception as e:
+        print(f"[disposal_hist] 上市查詢失敗 {code}: {e}")
+
+    # ---- 上櫃: TPEX OpenAPI (只有現行, 沒有歷史範圍參數) ----
+    if not periods:
+        try:
+            tpex = D._fetch_tpex_disposal()
+            for rec in tpex:
+                if rec["code"] == code and rec["disposal_start"]:
+                    periods.append({"start": rec["disposal_start"],
+                                    "end": rec["disposal_end"],
+                                    "measure": rec.get("measure", "")})
+        except Exception:
+            pass
+
+    # 去重 + 排序
+    seen = set()
+    uniq = []
+    for p in sorted(periods, key=lambda x: x["start"]):
+        key = (p["start"], p["end"])
+        if key not in seen:
+            seen.add(key)
+            uniq.append(p)
+
+    _disposal_history_cache[cache_key] = uniq
+    return uniq
