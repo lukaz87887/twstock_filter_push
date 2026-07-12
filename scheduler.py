@@ -124,22 +124,19 @@ def try_disposal_push(slot_label="", is_last_attempt=False):
 
 
 def _gen_and_upload_charts(result: dict) -> dict:
-    """對接近月線(🔴🟡)的處置股產生 K 線圖並 push 到 GitHub, 回傳 {code: raw_url}"""
-    chart_urls = {}
+    """產生「一張合併大圖」(接近月線的個股) 並 push 到 GitHub, 回傳 {"__combined__": raw_url}"""
+    from notify_telegram import make_combined_kline_png
     near = [r for r in result.get("items", []) if r["abs_diff_pct"] <= 5]
-    for r in near:
-        ticker = f"{r['code']}.{r.get('market', 'TW')}"
-        png = make_kline_png(ticker, r["name"],
-                             note=f"距月線{r['diff_pct']:+.1f}%",
-                             ma20_only=True)
-        if not png:
-            continue
-        path = f"results/charts/disposal_{r['code']}.png"
-        ok, url = push_bytes(path, png,
-                             commit_msg=f"chart {r['code']}")
-        if ok:
-            chart_urls[r["code"]] = url
-    return chart_urls
+    if not near:
+        return {}
+    png = make_combined_kline_png(near, data_date=result.get("data_date", ""))
+    if not png:
+        return {}
+    # 檔名帶日期, 避免 LINE 圖片快取到舊圖
+    date_tag = (result.get("data_date") or "").replace("-", "")
+    path = f"results/charts/disposal_combined_{date_tag}.png"
+    ok, url = push_bytes(path, png, commit_msg=f"combined chart {date_tag}")
+    return {"__combined__": url} if ok else {}
 
 
 def _chart_targets() -> set:

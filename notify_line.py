@@ -82,59 +82,52 @@ def send_batch(messages: list) -> bool:
 # ==================================================================
 def push_disposal_line(result: dict, chart_urls: dict = None):
     """
-    LINE 版處置股推播。
-    chart_urls: {code: 公開圖片URL} — K 線圖已 push 到 GitHub 拿到的 raw URL
+    LINE 版處置股推播: 統整成「一則訊息 + 一張合併大圖」。
+    chart_urls: {"__combined__": 公開圖片URL} — 合併大圖已 push 到 GitHub 的 raw URL
     """
     items = result.get("items", [])
     added = result.get("added_today", [])
     removed = result.get("removed_today", [])
     chart_urls = chart_urls or {}
+    data_date = result.get("data_date", "")
 
     if not items:
-        send_text("🌅 處置股提醒\n目前無處置生效中的普通股")
+        send_text(f"🚨 處置股提醒 ({data_date})\n目前無處置生效中的普通股")
         return
 
-    # ---- 訊息 1: 大總覽 ----
-    ov = [f"🚨 處置股提醒 ({result.get('data_date','')})",
-          f"處置生效中共 {len(items)} 檔"]
+    # ---- 統整成單一則訊息 ----
+    msg = [f"🚨 處置股提醒 ({data_date})",
+           f"處置生效中共 {len(items)} 檔"]
     if added:
-        ov.append(f"\n🆕 本日新增 {len(added)} 檔:")
+        msg.append(f"\n🆕 本日新增 {len(added)} 檔:")
         for it in added:
             mk = "櫃" if it.get("market") == "TWO" else "市"
-            ov.append(f"  ➕ {it['code']}({mk}) {it['name']} 至{it['disposal_end']}")
+            msg.append(f"  ➕ {it['code']}({mk}) {it['name']} 至{it['disposal_end']}")
     else:
-        ov.append("\n🆕 本日新增: 無")
+        msg.append("\n🆕 本日新增: 無")
     if removed:
-        ov.append(f"\n✅ 本日出關 {len(removed)} 檔: " + "、".join(removed))
+        msg.append(f"\n✅ 本日出關 {len(removed)} 檔: " + "、".join(removed))
     else:
-        ov.append("\n✅ 本日出關: 無")
-    ov.append(f"\n📋 全部: " +
-              "、".join([f"{it['code']}{it['name']}" for it in items]))
+        msg.append("\n✅ 本日出關: 無")
 
-    # ---- 訊息 2: 詳細清單 ----
-    detail = ["📈 距月線排序 (🔴≤2% 🟡≤5% ⚪>5%)"]
+    msg.append(f"\n📈 距月線排序 (🔴≤2% 🟡≤5% ⚪>5%)")
     for r in items[:30]:
         mk = "櫃" if r.get("market") == "TWO" else "市"
-        detail.append(f"{r['color']} {r['code']}({mk}) {r['name']} "
-                      f"距月線{r['diff_pct']:+.1f}%\n"
-                      f"   處置 {r['disposal_start']}~{r['disposal_end']}")
+        meas = r.get("measure", "")
+        meas_s = f" ({meas})" if meas else ""
+        msg.append(f"{r['color']} {r['code']}({mk}) {r['name']} "
+                   f"距月線{r['diff_pct']:+.1f}%\n"
+                   f"   處置 {r['disposal_start']}~{r['disposal_end']}{meas_s}")
 
-    # 先送兩則文字
-    send_batch([
-        {"type": "text", "text": "\n".join(ov)[:4900]},
-        {"type": "text", "text": "\n".join(detail)[:4900]},
-    ])
+    messages = [{"type": "text", "text": "\n".join(msg)[:4900]}]
 
-    # ---- 圖片: 接近月線 (🔴🟡) 的 K 線圖 ----
-    near = [r for r in items if r["abs_diff_pct"] <= 5]
-    img_msgs = []
-    for r in near:
-        url = chart_urls.get(r["code"])
-        if url:
-            img_msgs.append({
-                "type": "image",
-                "originalContentUrl": url,
-                "previewImageUrl": url,
-            })
-    if img_msgs:
-        send_batch(img_msgs)
+    # ---- 一張合併大圖 ----
+    combined_url = chart_urls.get("__combined__")
+    if combined_url:
+        messages.append({
+            "type": "image",
+            "originalContentUrl": combined_url,
+            "previewImageUrl": combined_url,
+        })
+
+    send_batch(messages)

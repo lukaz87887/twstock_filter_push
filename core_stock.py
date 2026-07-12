@@ -1004,8 +1004,22 @@ class DisposalStockFetcher:
                                     "Period", "起訖", "期間")
         k_pub = cls._resolve_key(s, "Date", "公布", "日期")
         k_cond = cls._resolve_key(s, "Condition", "Criteria", "Reason", "條件")
-        k_meas = cls._resolve_key(s, "DispositionMeasure", "Disposition",
-                                  "Measure", "措施")
+        # ★ 修 bug: "Disposition" 會撞到 DispositionPeriod, 需排除含 Period 的 key
+        k_meas = None
+        for k in s.keys():
+            ks = str(k)
+            if "Period" in ks or "期間" in ks or "起訖" in ks:
+                continue   # 跳過期間欄位
+            if any(x in ks for x in ("Measure", "措施", "Method", "處置方式")):
+                k_meas = k
+                break
+        if k_meas is None:
+            # 次選: 含 Disposition 但不含 Period 的欄位
+            for k in s.keys():
+                ks = str(k)
+                if "Disposition" in ks and "Period" not in ks:
+                    k_meas = k
+                    break
         if not (k_code and k_period):
             raise RuntimeError(f"TPEX 欄位無法辨識: {list(s.keys())}")
         seen = {}

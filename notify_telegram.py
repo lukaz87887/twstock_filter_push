@@ -310,68 +310,248 @@ def push_momentum(result: dict, top_n: int = 10, with_charts: bool = True):
 
 
 def push_disposal(result: dict, top_n: int = 30, with_charts: bool = True):
-    """早上盤前推處置股 (含大總覽 + 本日新增 + 本日出關)"""
+    """處置股推播: 統整成「一則訊息 + 一張合併大圖」"""
     items = result.get("items", [])
     added = result.get("added_today", [])
     removed = result.get("removed_today", [])
+    data_date = result.get("data_date", "")
 
     if result.get("error"):
         send_message(f"⚠️ 處置股掃描提醒: {result['error']}")
     if not items:
-        send_message("🌅 盤前處置股提醒\n目前無處置生效中的普通股")
+        send_message(f"🚨 處置股提醒 ({data_date})\n目前無處置生效中的普通股")
         return
 
-    # ---- 第 1 則: 大總覽 ----
-    overview = [f"🌅 盤前處置股提醒 ({result.get('data_date','')})",
-                f"{'='*22}",
-                f"📊 處置生效中共 {len(items)} 檔"]
+    # ---- 統整成單一則訊息 ----
+    msg = [f"🚨 處置股提醒 ({data_date})",
+           "=" * 22,
+           f"📊 處置生效中共 {len(items)} 檔"]
 
-    # 本日新增
     if added:
-        overview.append(f"\n🆕 本日新增 {len(added)} 檔:")
+        msg.append(f"\n🆕 本日新增 {len(added)} 檔:")
         for it in added:
             mk = "櫃" if it.get("market") == "TWO" else "市"
-            overview.append(f"  ➕ {it['code']}({mk}) {it['name']}  "
-                           f"處置至 {it['disposal_end']}")
+            msg.append(f"  ➕ {it['code']}({mk}) {it['name']}  "
+                       f"處置至 {it['disposal_end']}")
     else:
-        overview.append("\n🆕 本日新增: 無")
+        msg.append("\n🆕 本日新增: 無")
 
-    # 本日出關
     if removed:
-        overview.append(f"\n✅ 本日出關 {len(removed)} 檔:")
-        overview.append("  " + "、".join(removed))
+        msg.append(f"\n✅ 本日出關 {len(removed)} 檔:")
+        msg.append("  " + "、".join(removed))
     else:
-        overview.append("\n✅ 本日出關: 無")
+        msg.append("\n✅ 本日出關: 無")
 
-    # 全部標的清單 (代碼+名稱, 快速一覽)
-    overview.append(f"\n📋 全部處置標的:")
-    names_line = "、".join([f"{it['code']}{it['name']}" for it in items])
-    overview.append("  " + names_line)
-
-    send_message("\n".join(overview))
-
-    # ---- 第 2 則: 詳細清單 (依距月線排序) ----
-    detail = [f"📈 距月線排序 (🔴≤2% 🟡≤5% ⚪>5%)", f"{'━'*22}"]
+    # 詳細清單 (依距月線排序) — 併進同一則
+    msg.append(f"\n📈 距月線排序 (🔴≤2% 🟡≤5% ⚪>5%)")
+    msg.append("━" * 22)
     for r in items[:top_n]:
         mk = "櫃" if r.get("market") == "TWO" else "市"
-        detail.append(
+        meas = r.get("measure", "")
+        meas_s = f"  ({meas})" if meas else ""
+        msg.append(
             f"{r['color']} {r['code']}({mk}) {r['name']}  "
             f"距月線{r['diff_pct']:+.1f}%\n"
-            f"    處置 {r['disposal_start']}~{r['disposal_end']}  "
-            f"({r.get('measure','')})")
-    send_message("\n".join(detail))
+            f"    處置 {r['disposal_start']}~{r['disposal_end']}{meas_s}")
 
-    # ---- K 線圖: 只附接近月線 (🔴🟡) 的 ----
+    send_message("\n".join(msg))
+
+    # ---- 一張合併大圖 (每檔一個 subplot) ----
     if with_charts:
         near = [r for r in items if r["abs_diff_pct"] <= 5][:top_n]
-        for r in near:
-            ticker = f"{r['code']}.{r.get('market','TW')}"
-            png = make_kline_png(ticker, r["name"],
-                                 note=f"距月線{r['diff_pct']:+.1f}%",
-                                 ma20_only=True)
-            if png:
-                new_tag = " 🆕新增" if any(
-                    a["code"] == r["code"] for a in added) else ""
-                send_photo(png, caption=f"📈 {r['code']} {r['name']}"
-                                        f"{new_tag} (距月線{r['diff_pct']:+.1f}%)")
-                time.sleep(0.5)
+        if not near:
+            return
+        png = make_combined_kline_png(near, data_date=data_date)
+        if png:
+            codes = "、".join([f"{r['code']}{r['name']}" for r in near])
+            send_photo(png, caption=f"📈 接近月線個股 K 線 ({len(near)} 檔)\n"
+                                    f"{codes}")
+
+
+# ==================================================================
+#   多檔股票合併成一張大圖 (每檔一個 subplot, 越多檔圖越大)
+# ==================================================================
+def make_combined_kline_png(items: list, data_date: str = "") -> bytes | None:
+    """
+    把多檔股票的 K 線畫在同一張圖 (每檔一個 subplot)。
+
+    items: [{code, name, market, diff_pct, disposal_start, disposal_end}, ...]
+    data_date: 資料日期, 標在左上角 (避免左滑右滑看圖時錯亂)
+
+    尺寸策略: 每個 subplot 固定 7x4.2 吋, 網格自動排列
+              → 股票越多圖越大, 每張子圖都保持清晰不壓縮
+    """
+    if not items:
+        return None
+
+    import math
+    from matplotlib import font_manager as _fm
+    from matplotlib.gridspec import GridSpec
+    import matplotlib.dates as mdates
+
+    n = len(items)
+    # 網格: 每列最多 2 檔 (太多列會過寬), 少於等於 2 檔就單列
+    ncols = 1 if n == 1 else 2
+    nrows = math.ceil(n / ncols)
+
+    # 每個 subplot 的實體尺寸 (吋) — 固定, 所以總圖隨檔數變大
+    SUB_W, SUB_H = 7.5, 4.5
+    fig_w = SUB_W * ncols
+    fig_h = SUB_H * nrows + 0.6      # +0.6 給頂部標題列
+
+    fig = plt.figure(figsize=(fig_w, fig_h), dpi=100, facecolor="white")
+    gs = GridSpec(nrows, ncols, figure=fig,
+                  hspace=0.35, wspace=0.18,
+                  top=1 - 0.5 / fig_h, bottom=0.35 / fig_h,
+                  left=0.05, right=0.97)
+
+    # 中文字型
+    fp = None
+    if _CJK_FONT:
+        try:
+            fp = _fm.FontProperties(family=_CJK_FONT)
+        except Exception:
+            fp = None
+
+    # ---- 左上角資料日期標示 (需求 2) ----
+    fig.text(0.01, 0.995,
+             f"📅 資料日期: {data_date}" if data_date else "",
+             ha="left", va="top", fontsize=13, fontweight="bold",
+             color="#1a3a5c", fontproperties=fp,
+             bbox=dict(boxstyle="round,pad=0.4", facecolor="#E3F2FD",
+                       edgecolor="#1565C0", alpha=0.9))
+
+    drawn = 0
+    for i, it in enumerate(items):
+        code = str(it["code"])
+        name = it.get("name", "")
+        market = it.get("market", "TW")
+        ticker = f"{code}.{market}"
+
+        df = _load_ohlcv(ticker)
+        if df is None or df.empty or len(df) < 20:
+            continue
+
+        plot_df = df.tail(120).copy()
+        r, c = divmod(drawn, ncols)
+        ax = fig.add_subplot(gs[r, c])
+
+        # --- 畫 K 線 (手繪, 才能完全控制) ---
+        _draw_candles(ax, plot_df)
+
+        # --- 20MA 月線 ---
+        ma20 = plot_df["Close"].rolling(20).mean()
+        ax.plot(range(len(plot_df)), ma20.values,
+                color="#1E90FF", linewidth=1.8, label="20MA", zorder=3)
+
+        # --- 處置期間網底 (含歷史多段) ---
+        _draw_spans_on_ax(ax, plot_df, code)
+
+        # --- 標題 ---
+        mk = "櫃" if market == "TWO" else "市"
+        diff = it.get("diff_pct")
+        diff_s = f"  距月線{diff:+.1f}%" if diff is not None else ""
+        ax.set_title(f"{code}({mk}) {name}{diff_s}",
+                     fontsize=12, fontweight="bold",
+                     fontproperties=fp, pad=8)
+
+        # --- 軸 ---
+        ax.grid(True, linestyle=":", alpha=0.35)
+        ax.tick_params(labelsize=8)
+        # x 軸日期標籤 (每 20 根一個)
+        idx = plot_df.index
+        step = max(len(idx) // 5, 1)
+        ticks = list(range(0, len(idx), step))
+        ax.set_xticks(ticks)
+        ax.set_xticklabels([idx[t].strftime("%m/%d") for t in ticks],
+                           fontsize=8, rotation=0)
+        ax.set_xlim(-1, len(plot_df))
+        # y 軸留白
+        lo, hi = plot_df["Low"].min(), plot_df["High"].max()
+        pad = (hi - lo) * 0.08
+        ax.set_ylim(lo - pad, hi + pad)
+        ax.set_ylabel("價格", fontsize=9, fontproperties=fp)
+
+        drawn += 1
+
+    if drawn == 0:
+        plt.close(fig)
+        return None
+
+    buf = io.BytesIO()
+    try:
+        fig.savefig(buf, format="png", dpi=100, facecolor="white")
+        buf.seek(0)
+        return buf.getvalue()
+    except Exception as e:
+        print(f"[notify] 合併圖繪製失敗: {e}")
+        return None
+    finally:
+        plt.close("all")
+
+
+def _load_ohlcv(ticker: str):
+    """抓 OHLCV (上市優先證交所, 其他退 yfinance) + 清理"""
+    code = ticker.rsplit(".", 1)[0]
+    df = None
+    if ticker.endswith(".TW"):
+        try:
+            from core_stock import _fetch_twse_stock_day
+            t = _fetch_twse_stock_day(code, months_back=6)
+            if not t.empty and len(t) >= 20:
+                df = t
+        except Exception:
+            pass
+    if df is None:
+        df = StockDataFetcher.fetch_history(ticker, period="6mo")
+    if df is None or df.empty:
+        return None
+    need = ["Open", "High", "Low", "Close"]
+    if not all(c in df.columns for c in need):
+        return None
+    df = df.copy()
+    for c in need + (["Volume"] if "Volume" in df.columns else []):
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+    df = df.dropna(subset=need)
+    return df if len(df) >= 20 else None
+
+
+def _draw_candles(ax, plot_df):
+    """手繪 K 棒 (台股紅漲綠跌)"""
+    for i, (_, row) in enumerate(plot_df.iterrows()):
+        o, h, l, c = row["Open"], row["High"], row["Low"], row["Close"]
+        color = "#C62828" if c >= o else "#2E7D32"
+        # 影線
+        ax.plot([i, i], [l, h], color=color, linewidth=0.8, zorder=2)
+        # 實體
+        bottom = min(o, c)
+        height = abs(c - o) or (h - l) * 0.005 or 0.01
+        ax.add_patch(plt.Rectangle((i - 0.3, bottom), 0.6, height,
+                                   facecolor=color, edgecolor=color,
+                                   linewidth=0.5, zorder=2))
+
+
+def _draw_spans_on_ax(ax, plot_df, code: str):
+    """在單一 ax 上畫處置期間網底 (只畫落在圖表範圍內的)"""
+    try:
+        from core_stock import get_disposal_periods
+        periods = get_disposal_periods(code, days_back=200)
+        if not periods:
+            return
+        idx = plot_df.index
+        c_start, c_end = idx[0], idx[-1]
+        for p in periods:
+            try:
+                ds, de = pd.Timestamp(p["start"]), pd.Timestamp(p["end"])
+            except Exception:
+                continue
+            if de < c_start or ds > c_end:
+                continue     # 不在圖表範圍內 → 不畫
+            x0 = max(0, idx.searchsorted(max(ds, c_start)))
+            x1 = min(len(idx) - 1, idx.searchsorted(min(de, c_end)))
+            if x1 <= x0:
+                x1 = x0 + 0.8
+            ax.axvspan(x0 - 0.4, x1 + 0.4, color="#FF6B6B",
+                       alpha=0.16, zorder=0, linewidth=0)
+    except Exception as e:
+        print(f"[notify] 網底失敗 {code}: {e}")
