@@ -405,15 +405,17 @@ def make_combined_kline_png(items: list, data_date: str = "") -> bytes | None:
     # 每個 subplot 的實體尺寸 (吋) — 固定, 所以總圖隨檔數變大
     # 加高一點容納量能副圖
     SUB_W, SUB_H = 7.5, 5.4
-    HEADER_H = 0.85                  # ★ 頂部保留給「資料日期」標籤的獨立空白 (吋)
+    # ★ 頂部空白: 要同時容納「資料日期標籤」+「第一列的子圖標題」
+    #   (matplotlib 的 set_title 畫在軸框「外側上方」, 會往上侵入)
+    HEADER_H = 1.4
     fig_w = SUB_W * ncols
     fig_h = SUB_H * nrows + HEADER_H
 
     fig = plt.figure(figsize=(fig_w, fig_h), dpi=100, facecolor="white")
-    # 外層網格: 每檔股票一格 (top 往下壓, 空出 HEADER_H 給日期標籤)
+    # 外層網格: top 壓到 HEADER 下方, 讓子圖標題有空間往上長而不撞到日期標籤
     gs_outer = GridSpec(nrows, ncols, figure=fig,
-                        hspace=0.42, wspace=0.20,
-                        top=1 - HEADER_H / fig_h,   # ★ 不再撞到頂部標籤
+                        hspace=0.45, wspace=0.20,
+                        top=1 - HEADER_H / fig_h,
                         bottom=0.35 / fig_h,
                         left=0.06, right=0.97)
 
@@ -431,13 +433,13 @@ def make_combined_kline_png(items: list, data_date: str = "") -> bytes | None:
         except Exception:
             fp = fp_title = fp_date = None
 
-    # ---- 資料日期標示 (放在頂部獨立空白區, 不與子圖標題重疊) ----
+    # ---- 資料日期標示 (貼在圖片最頂端, 遠離子圖標題) ----
     _date_kw = {"fontproperties": fp_date} if fp_date else {
         "fontsize": 15, "fontweight": "bold"}
     if data_date:
-        # y 座標: 在 HEADER 區域垂直置中
-        header_center_y = 1 - (HEADER_H / 2) / fig_h
-        fig.text(0.015, header_center_y,
+        # 貼近頂邊 (留 0.35 吋), 子圖標題在 HEADER 下半部, 兩者不會撞
+        y_top = 1 - (0.35 / fig_h)
+        fig.text(0.015, y_top,
                  f"📅 資料日期: {data_date}",
                  ha="left", va="center", color="#1a3a5c",
                  bbox=dict(boxstyle="round,pad=0.45", facecolor="#E3F2FD",
