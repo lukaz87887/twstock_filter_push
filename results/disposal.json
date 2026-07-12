@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-07-12 11:30:59",
+  "generated_at": "2026-07-12 11:31:01",
   "data_date": "2026-07-12",
-  "scanned": 25,
+  "scanned": 18,
   "items": [
     {
       "code": "2303",
@@ -16,21 +16,6 @@
       "disposal_start": "2026-07-02",
       "disposal_end": "2026-07-15",
       "measure": "第一次處置",
-      "is_active": true
-    },
-    {
-      "code": "6217",
-      "name": "中探針",
-      "market": "TWO",
-      "close": 250.0,
-      "ma20": 253.68,
-      "diff_pct": -1.45,
-      "abs_diff_pct": 1.45,
-      "color": "🔴",
-      "change_5d_pct": -7.06,
-      "disposal_start": "2026-07-06",
-      "disposal_end": "2026-07-17",
-      "measure": "最近10個營業日內有6個營業日",
       "is_active": true
     },
     {
@@ -94,21 +79,6 @@
       "is_active": true
     },
     {
-      "code": "6174",
-      "name": "安碁",
-      "market": "TWO",
-      "close": 57.7,
-      "ma20": 54.39,
-      "diff_pct": 6.08,
-      "abs_diff_pct": 6.08,
-      "color": "⚪",
-      "change_5d_pct": -6.63,
-      "disposal_start": "2026-07-09",
-      "disposal_end": "2026-07-22",
-      "measure": "最近10個營業日內有6個營業日",
-      "is_active": true
-    },
-    {
       "code": "7795",
       "name": "長廣",
       "market": "TW",
@@ -124,21 +94,6 @@
       "is_active": true
     },
     {
-      "code": "8024",
-      "name": "佑華",
-      "market": "TWO",
-      "close": 16.8,
-      "ma20": 14.77,
-      "diff_pct": 13.74,
-      "abs_diff_pct": 13.74,
-      "color": "⚪",
-      "change_5d_pct": 5.99,
-      "disposal_start": "2026-06-30",
-      "disposal_end": "2026-07-13",
-      "measure": "因連續3個營業日達本中心作業要點第四條第一項第一款",
-      "is_active": true
-    },
-    {
       "code": "1447",
       "name": "力鵬",
       "market": "TW",
@@ -151,21 +106,6 @@
       "disposal_start": "2026-07-06",
       "disposal_end": "2026-07-17",
       "measure": "第一次處置",
-      "is_active": true
-    },
-    {
-      "code": "3147",
-      "name": "大綜",
-      "market": "TWO",
-      "close": 232.0,
-      "ma20": 286.32,
-      "diff_pct": -18.97,
-      "abs_diff_pct": 18.97,
-      "color": "⚪",
-      "change_5d_pct": -1.69,
-      "disposal_start": "2026-07-06",
-      "disposal_end": "2026-07-17",
-      "measure": "因連續3個營業日達本中心作業要點第四條第一項第一款",
       "is_active": true
     },
     {
@@ -214,21 +154,6 @@
       "is_active": true
     },
     {
-      "code": "3230",
-      "name": "錦明",
-      "market": "TWO",
-      "close": 52.3,
-      "ma20": 41.21,
-      "diff_pct": 26.9,
-      "abs_diff_pct": 26.9,
-      "color": "⚪",
-      "change_5d_pct": 1.36,
-      "disposal_start": "2026-07-06",
-      "disposal_end": "2026-07-17",
-      "measure": "因連續3個營業日達本中心作業要點第四條第一項第一款",
-      "is_active": true
-    },
-    {
       "code": "1515",
       "name": "力山",
       "market": "TW",
@@ -241,21 +166,6 @@
       "disposal_start": "2026-07-07",
       "disposal_end": "2026-07-20",
       "measure": "第一次處置",
-      "is_active": true
-    },
-    {
-      "code": "4707",
-      "name": "磐亞",
-      "market": "TWO",
-      "close": 36.25,
-      "ma20": 28.11,
-      "diff_pct": 28.93,
-      "abs_diff_pct": 28.93,
-      "color": "⚪",
-      "change_5d_pct": 7.25,
-      "disposal_start": "2026-07-09",
-      "disposal_end": "2026-07-22",
-      "measure": "最近10個營業日內有6個營業日",
       "is_active": true
     },
     {
@@ -301,21 +211,6 @@
       "disposal_start": "2026-07-10",
       "disposal_end": "2026-07-23",
       "measure": "第一次處置",
-      "is_active": true
-    },
-    {
-      "code": "6617",
-      "name": "共信-KY",
-      "market": "TWO",
-      "close": 110.0,
-      "ma20": 80.36,
-      "diff_pct": 36.88,
-      "abs_diff_pct": 36.88,
-      "color": "⚪",
-      "change_5d_pct": 18.79,
-      "disposal_start": "2026-07-08",
-      "disposal_end": "2026-07-21",
-      "measure": "因連續3個營業日達本中心作業要點第四條第一項第一款",
       "is_active": true
     },
     {
@@ -380,7 +275,15 @@
     }
   ],
   "added_today": [],
-  "removed_today": [],
+  "removed_today": [
+    "3147",
+    "3230",
+    "4707",
+    "6174",
+    "6217",
+    "6617",
+    "8024"
+  ],
   "all_codes": [
     "1435",
     "1447",
@@ -392,21 +295,14 @@
     "2466",
     "2483",
     "3055",
-    "3147",
     "3189",
-    "3230",
     "3450",
     "4169",
-    "4707",
-    "6174",
-    "6217",
     "6226",
-    "6617",
     "7795",
     "8021",
-    "8024",
     "8033",
     "8261"
   ],
-  "error": null
+  "error": "⚠️ 上櫃處置抓取失敗(僅顯示上市): TPEX HTTP 520"
 }
