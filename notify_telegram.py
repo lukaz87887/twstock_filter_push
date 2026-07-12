@@ -405,21 +405,29 @@ def make_combined_kline_png(items: list, data_date: str = "") -> bytes | None:
                   top=1 - 0.5 / fig_h, bottom=0.35 / fig_h,
                   left=0.05, right=0.97)
 
-    # 中文字型
-    fp = None
+    # 中文字型 (各用途分別指定大小, 避免 FontProperties 覆蓋 fontsize)
+    fp = None            # 一般用 (軸標籤)
+    fp_title = None      # 子圖標題 (大)
+    fp_date = None       # 左上角日期
     if _CJK_FONT:
         try:
-            fp = _fm.FontProperties(family=_CJK_FONT)
+            fp = _fm.FontProperties(family=_CJK_FONT, size=11)
+            fp_title = _fm.FontProperties(family=_CJK_FONT, size=18,
+                                          weight="bold")
+            fp_date = _fm.FontProperties(family=_CJK_FONT, size=15,
+                                         weight="bold")
         except Exception:
-            fp = None
+            fp = fp_title = fp_date = None
 
     # ---- 左上角資料日期標示 (需求 2) ----
+    _date_kw = {"fontproperties": fp_date} if fp_date else {
+        "fontsize": 15, "fontweight": "bold"}
     fig.text(0.01, 0.995,
              f"📅 資料日期: {data_date}" if data_date else "",
-             ha="left", va="top", fontsize=13, fontweight="bold",
-             color="#1a3a5c", fontproperties=fp,
+             ha="left", va="top", color="#1a3a5c",
              bbox=dict(boxstyle="round,pad=0.4", facecolor="#E3F2FD",
-                       edgecolor="#1565C0", alpha=0.9))
+                       edgecolor="#1565C0", alpha=0.9),
+             **_date_kw)
 
     drawn = 0
     for i, it in enumerate(items):
@@ -451,26 +459,28 @@ def make_combined_kline_png(items: list, data_date: str = "") -> bytes | None:
         mk = "櫃" if market == "TWO" else "市"
         diff = it.get("diff_pct")
         diff_s = f"  距月線{diff:+.1f}%" if diff is not None else ""
+        _title_kw = {"fontproperties": fp_title} if fp_title else {
+            "fontsize": 18, "fontweight": "bold"}
         ax.set_title(f"{code}({mk}) {name}{diff_s}",
-                     fontsize=12, fontweight="bold",
-                     fontproperties=fp, pad=8)
+                     color="#1a3a5c", pad=12, **_title_kw)
 
         # --- 軸 ---
         ax.grid(True, linestyle=":", alpha=0.35)
-        ax.tick_params(labelsize=8)
-        # x 軸日期標籤 (每 20 根一個)
+        ax.tick_params(labelsize=11)
+        # x 軸日期標籤
         idx = plot_df.index
         step = max(len(idx) // 5, 1)
         ticks = list(range(0, len(idx), step))
         ax.set_xticks(ticks)
         ax.set_xticklabels([idx[t].strftime("%m/%d") for t in ticks],
-                           fontsize=8, rotation=0)
+                           fontsize=11, rotation=0)
         ax.set_xlim(-1, len(plot_df))
         # y 軸留白
         lo, hi = plot_df["Low"].min(), plot_df["High"].max()
         pad = (hi - lo) * 0.08
         ax.set_ylim(lo - pad, hi + pad)
-        ax.set_ylabel("價格", fontsize=9, fontproperties=fp)
+        _ylab_kw = {"fontproperties": fp} if fp else {"fontsize": 11}
+        ax.set_ylabel("價格", **_ylab_kw)
 
         drawn += 1
 
