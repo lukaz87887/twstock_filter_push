@@ -405,14 +405,16 @@ def make_combined_kline_png(items: list, data_date: str = "") -> bytes | None:
     # 每個 subplot 的實體尺寸 (吋) — 固定, 所以總圖隨檔數變大
     # 加高一點容納量能副圖
     SUB_W, SUB_H = 7.5, 5.4
+    HEADER_H = 0.85                  # ★ 頂部保留給「資料日期」標籤的獨立空白 (吋)
     fig_w = SUB_W * ncols
-    fig_h = SUB_H * nrows + 0.6      # +0.6 給頂部標題列
+    fig_h = SUB_H * nrows + HEADER_H
 
     fig = plt.figure(figsize=(fig_w, fig_h), dpi=100, facecolor="white")
-    # 外層網格: 每檔股票一格
+    # 外層網格: 每檔股票一格 (top 往下壓, 空出 HEADER_H 給日期標籤)
     gs_outer = GridSpec(nrows, ncols, figure=fig,
-                        hspace=0.38, wspace=0.20,
-                        top=1 - 0.5 / fig_h, bottom=0.35 / fig_h,
+                        hspace=0.42, wspace=0.20,
+                        top=1 - HEADER_H / fig_h,   # ★ 不再撞到頂部標籤
+                        bottom=0.35 / fig_h,
                         left=0.06, right=0.97)
 
     # 中文字型 (各用途分別指定大小, 避免 FontProperties 覆蓋 fontsize)
@@ -429,15 +431,18 @@ def make_combined_kline_png(items: list, data_date: str = "") -> bytes | None:
         except Exception:
             fp = fp_title = fp_date = None
 
-    # ---- 左上角資料日期標示 (需求 2) ----
+    # ---- 資料日期標示 (放在頂部獨立空白區, 不與子圖標題重疊) ----
     _date_kw = {"fontproperties": fp_date} if fp_date else {
         "fontsize": 15, "fontweight": "bold"}
-    fig.text(0.01, 0.995,
-             f"📅 資料日期: {data_date}" if data_date else "",
-             ha="left", va="top", color="#1a3a5c",
-             bbox=dict(boxstyle="round,pad=0.4", facecolor="#E3F2FD",
-                       edgecolor="#1565C0", alpha=0.9),
-             **_date_kw)
+    if data_date:
+        # y 座標: 在 HEADER 區域垂直置中
+        header_center_y = 1 - (HEADER_H / 2) / fig_h
+        fig.text(0.015, header_center_y,
+                 f"📅 資料日期: {data_date}",
+                 ha="left", va="center", color="#1a3a5c",
+                 bbox=dict(boxstyle="round,pad=0.45", facecolor="#E3F2FD",
+                           edgecolor="#1565C0", alpha=0.95, linewidth=1.5),
+                 **_date_kw)
 
     drawn = 0
     for i, it in enumerate(items):
