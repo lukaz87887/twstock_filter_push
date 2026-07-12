@@ -27,6 +27,15 @@ scheduler.py — Railway 上 24h 常駐的排程器
 import os
 import time
 import traceback
+
+# ★★★ 關鍵: 在 import datetime 之前強制設定時區為台北 ★★★
+# 不依賴 Railway 的 TZ 變數是否正確套用, 直接在程式碼裡鎖死
+os.environ["TZ"] = os.environ.get("TZ", "Asia/Taipei")
+try:
+    time.tzset()   # Linux/Unix 生效 (Railway 是 Linux)
+except AttributeError:
+    pass           # Windows 沒有 tzset, 本地測試時忽略
+
 from datetime import datetime
 
 import schedule
@@ -299,8 +308,16 @@ def main():
          f"LINE={'靜音(測試模式)' if test_mode else ('ON' if line_on else 'off')}")
     if test_mode:
         _log("  🧪 CHART_TARGETS=test → 只推 Telegram(含圖), LINE 完全不推")
-    _log(f"  時區 TZ={_env('TZ', '(未設定, 建議設 Asia/Taipei)')}")
-    _log(f"  現在時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S %A')}")
+    _log(f"  時區 TZ={_env('TZ', '(未設定)')}")
+    # ★ 時區驗證: 印出本地時間 + UTC 時間對照, 一眼確認有沒有生效
+    from datetime import timezone
+    now_local = datetime.now()
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+    offset_h = round((now_local - now_utc).total_seconds() / 3600)
+    _log(f"  現在時間(本地): {now_local.strftime('%Y-%m-%d %H:%M:%S %A')}")
+    _log(f"  現在時間(UTC) : {now_utc.strftime('%Y-%m-%d %H:%M:%S')}")
+    _log(f"  時差: UTC{offset_h:+d}  "
+         f"{'✅ 台北時間正確 (UTC+8)' if offset_h == 8 else '⚠️ 不是 UTC+8! 排程時間會錯!'}")
     _log("=" * 50)
 
     # 傍晚重試序列: 18→20→22→00, 每時段檢查資料就緒才推 (已推過會自動跳過)
